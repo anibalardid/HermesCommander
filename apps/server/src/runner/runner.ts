@@ -887,8 +887,23 @@ export class MissionRunner {
     const mission = this.store.getMission(missionId);
     if (!mission) return;
 
-    // Gather a concise summary of what each subtask was and its status.
-    const lines = siblings.map((t) => `- ${t.title}${t.description ? `: ${t.description}` : ''} (done)`).join('\n');
+    // Gather a concise summary of what each subtask was and its status. For
+    // the summary LLM to reflect reality (not invent an optimistic PASS), feed
+    // it each subtask's REAL output — the last non-instruction log line(s) —
+    // rather than its instruction prompt (t.description). The instruction
+    // prompt is what the subagent was told to do, not what it found.
+    const lines = siblings.map((t) => {
+      const runs = this.store.listRunsForTask(t.id);
+      const lastRun = runs[runs.length - 1];
+      const logs = lastRun ? this.store.listLogsForRun(lastRun.id) as Array<{ message: string }> : [];
+      // Skip the spawn line (the full instruction prompt) and any system lines;
+      // keep the subagent's actual answer (the last meaningful stdout line).
+      const real = [...logs].reverse().find((l) =>
+        l.message && !l.message.startsWith('Spawning task subagent') && !l.message.startsWith('You are acting as'),
+      );
+      const outcome = real ? real.message : (t.description ?? '');
+      return `- ${t.title}: ${outcome.slice(0, 600)} (done)`;
+    }).join('\n');
     const isReview = !!(parent.review_pr_project_id && parent.review_pr_number);
     const prompt = [
       `You are summarizing a completed mission for a pull request / commit message.`,
@@ -922,37 +937,39 @@ export class MissionRunner {
     }
 
     // For a PR review, extract the structured verdict (PASS / NEEDS CHANGES /
-    // REJECT) from the report and store it separately so the UI can highlight
-    // it. Strip the verdict line from the stored description.
+    // REJECT) and store it separately so the UI can highlight it. Strip the
+    // verdict line from the stored description.
+    //
+    // Source of truth: the SUBTASKS' real outputs, not the summary pass. The
+    // summary LLM only sees the subtask titles/instructions and can invent an
+    // optimistic PASS even when every reviewer actually said REJECT (it has no
+    // access to the real findings). The final review gate runs LAST, so the
+    // LAST verdict line across all subtask logs is the authoritative one.
     let verdict: TaskRow['review_verdict'] = null;
     let cleanReport = report;
     if (isReview) {
-      const m = report.match(/VERDICT:\s*(PASS|NEEDS CHANGES|REJECT)/i);
-      if (m) {
-        const v = m[1].toUpperCase();
-        verdict = v === 'PASS' ? 'pass' : v === 'NEEDS CHANGES' ? 'needs_changes' : 'reject';
-        cleanReport = report.replace(/VERDICT:\s*(PASS|NEEDS CHANGES|REJECT)/i, '').trim();
-      } else {
-        // The summary pass didn't emit a verdict (e.g. it failed or returned
-        // empty). Fall back to the subtasks' own logs: the final review gate
-        // ends with `VERDICT: ...`. Take the LAST verdict line across all
-        // subtask logs (each subagent log embeds its instruction prompt, which
-        // lists all three options, so the first match is always the prompt's
-        // PASS — the real verdict is the gate's, which runs last).
-        const verdicts: string[] = [];
-        for (const sib of siblings) {
-          for (const run of this.store.listRunsForTask(sib.id)) {
-            for (const log of this.store.listLogsForRun(run.id) as Array<{ message: string }>) {
-              const mm = String(log.message).match(/VERDICT:\s*(PASS|NEEDS CHANGES|REJECT)/i);
-              if (mm) verdicts.push(mm[1].toUpperCase());
-            }
+      const verdicts: string[] = [];
+      for (const sib of siblings) {
+        for (const run of this.store.listRunsForTask(sib.id)) {
+          for (const log of this.store.listLogsForRun(run.id) as Array<{ message: string }>) {
+            const mm = String(log.message).match(/VERDICT:\s*(PASS|NEEDS CHANGES|REJECT)/i);
+            if (mm) verdicts.push(mm[1].toUpperCase());
           }
         }
-        if (verdicts.length > 0) {
-          const v = verdicts[verdicts.length - 1];
+      }
+      // Prefer the LAST verdict from the subtask logs (the gate's). Only if
+      // none of the subtasks emitted one, fall back to the summary's verdict.
+      if (verdicts.length > 0) {
+        const v = verdicts[verdicts.length - 1];
+        verdict = v === 'PASS' ? 'pass' : v === 'NEEDS CHANGES' ? 'needs_changes' : 'reject';
+      } else {
+        const m = report.match(/VERDICT:\s*(PASS|NEEDS CHANGES|REJECT)/i);
+        if (m) {
+          const v = m[1].toUpperCase();
           verdict = v === 'PASS' ? 'pass' : v === 'NEEDS CHANGES' ? 'needs_changes' : 'reject';
         }
       }
+      cleanReport = report.replace(/VERDICT:\s*(PASS|NEEDS CHANGES|REJECT)/i, '').trim();
     }
 
     // Store the report on the parent's description and mark the parent done.
