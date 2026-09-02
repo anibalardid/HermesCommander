@@ -95,3 +95,7 @@ only need **bash** (3.2+ on macOS, 4+ on Linux).
 | ![Git Tasks](docs/images/tasks.png) | ![Resume](docs/images/resume.png) |
 | **Settings** — language, theme, notifications, health | **Help** — overview and architecture |
 | ![Settings](docs/images/settings.png) | ![Help](docs/images/help.png) |
+| **New project** — add a local or remote repo | **New mission** — create a mission container |
+| ![New project](docs/images/modal-new-project.png) | ![New mission](docs/images/modal-new-mission.png) |
+| **New task** — orchestrator, subagents and git strategy | |
+| ![New task](docs/images/modal-new-task.png) | |
