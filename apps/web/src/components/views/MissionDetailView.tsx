@@ -2068,6 +2068,9 @@ function NewTaskModal({
                 </button>
               ))}
             </div>
+            {subagentIds.length === 0 && (
+              <p className="mt-1 text-[11px] text-amber-600">{t('task.subagentsRequired')}</p>
+            )}
           </div>
         </div>
         <div className="mt-4 flex justify-end gap-2">
@@ -2081,7 +2084,7 @@ function NewTaskModal({
                 await onCreate({ title, description, gitStrategy, branch, profile, model, provider, subagentIds });
               } finally { setSaving(false); }
             }}
-            disabled={!title.trim() || !profile || !model || saving}
+            disabled={!title.trim() || !profile || !model || subagentIds.length === 0 || saving}
             className="rounded-md bg-primary px-4 py-2 text-sm text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
           >
             {saving ? t('common.saving') : t('common.save')}

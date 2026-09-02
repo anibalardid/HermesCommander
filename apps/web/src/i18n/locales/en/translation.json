@@ -245,6 +245,7 @@
     "branchesAvailable": "branches available",
     "branchNewHint": "pick an existing branch or type a new one (it will be created from HEAD)",
     "subagents": "Subagents",
+    "subagentsRequired": "Select at least one subagent.",
     "subagentsLocked": "locked — plan generated",
     "subtask": "Subtask",
     "back": "Back",

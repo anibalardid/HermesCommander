@@ -245,6 +245,7 @@
     "branchesAvailable": "ramas disponibles",
     "branchNewHint": "elige una rama existente o escribe una nueva (se creará desde HEAD)",
     "subagents": "Subagentes",
+    "subagentsRequired": "Seleccioná al menos un subagente.",
     "subagentsLocked": "bloqueados — plan generado",
     "subtask": "Subtarea",
     "back": "Volver",
