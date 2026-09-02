@@ -36,13 +36,13 @@ export function RunStateBadge({ state, alive }: { state: string; alive?: boolean
   const stale = alive === false && activeStates.includes(state);
   return (
     <span
-      title={stale ? `${t(`task.runState.${state}`)} — ${t('task.runStateStale')}` : t(`task.runState.${state}`)}
+      title={stale ? `${t(`task.runState.${state}`)} — ${t('task.runState.runStateStale')}` : t(`task.runState.${state}`)}
       className={`inline-flex shrink-0 items-center gap-1 rounded-full border px-1.5 py-0.5 text-[10px] font-medium ${
         stale ? 'border-red-500/50 bg-red-500/10 text-red-500' : 'border-border/60 bg-background/60'
       } ${stale ? '' : meta.cls}`}
     >
       <Icon className={`h-3 w-3 ${meta.spin && !stale ? 'animate-spin' : ''}`} />
-      <span>{stale ? t('task.runStateStale') : t(`task.runState.${state}`)}</span>
+      <span>{stale ? t('task.runState.runStateStale') : t(`task.runState.${state}`)}</span>
     </span>
   );
 }
