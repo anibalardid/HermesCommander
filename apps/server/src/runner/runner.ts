@@ -972,7 +972,14 @@ export class MissionRunner {
     let missionsRecovered = 0;
 
     // Stale run_states that mean "something is happening" but with no live process.
-    const activeRunStates = ['running', 'delegating', 'waiting_review', 'planning'];
+    // NOTE: `planning` is deliberately NOT here. A task in `planning` is being
+    // planned by planTaskAsync, which runs the planner in the background WITHOUT
+    // registering a process in taskProcesses. If the watchdog treated `planning`
+    // as stale it would auto-run the task (void this.runTask) the moment the
+    // user clicks "generate plan", yanking it from `todo` into `doing`/`delegating`
+    // before the user ever pressed Play. Planning is self-managed: planTaskAsync
+    // clears the state itself when the planner finishes.
+    const activeRunStates = ['running', 'delegating', 'waiting_review'];
 
     // Also catch a residual state: a task whose `state` is 'doing' but whose
     // run_state fell back to 'idle', with no run ever having started. This is a
