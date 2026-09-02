@@ -5,6 +5,8 @@
 > Mission Control for startups and solopreneurs. Manage projects, missions and AI agents
 > (Hermes as orchestrator) from your phone, tablet or desktop, over Tailscale.
 > 100% web, single-user.
+>
+> **GitHub:** https://github.com/anibalardid/HermesCommander
 
 ## Concept
 
