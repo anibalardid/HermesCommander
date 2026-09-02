@@ -41,13 +41,25 @@ only need **bash** (3.2+ on macOS, 4+ on Linux).
 
 | Requirement | Type | Notes |
 |-------------|------|-------|
-| `node` (>=20) | required | `engines.node` in `package.json` |
+| `node` (>=20, <26) | required | `engines.node` in `package.json` — Node 26 is **not** supported yet (see below) |
 | `npm` | required | bundled with node (manual install) |
 | `python3` | required | PTY helper for the embedded terminal |
 | `git` | required | worktrees, clone, source control |
 | `gh` | optional | only for creating PRs |
 | `hermes` | required | orchestrator + TUI terminal (manual install) |
 | `tailscale` | optional | remote access from your phone |
+
+> **Node version (important):** the backend uses `better-sqlite3`, a native
+> addon. It ships prebuilt binaries for Node 20/22/24, but **not for Node 26**,
+> whose V8 API changed incompatibly — on Node 26 `npm install` falls back to a
+> source build that fails. Use Node 20 or 22 LTS (e.g. `nvm use 22`). The repo
+> pins this via `.nvmrc` (22), `engines.node` (`>=20 <26`) and `.npmrc`
+> (`engine-strict=true`), and `install.sh` rejects Node 26 with a clear error.
+>
+> **Linux native build prerequisites:** if a prebuilt binary is unavailable for
+> your exact Node/OS/arch combination, `better-sqlite3` compiles from source and
+> needs a C++ toolchain: `build-essential` + `python3` (Debian/Ubuntu),
+> `gcc-c++` + `make` + `python3` (Fedora/RHEL), or `build-base` (Alpine).
 
 ## Quick Start
 

@@ -125,6 +125,24 @@ pkg_for() {
 }
 
 # ---------------------------------------------------------------------------
+# Node version guard
+# ---------------------------------------------------------------------------
+# better-sqlite3 (native addon) does not yet support Node 26: its V8 API
+# changed incompatibly, so `npm ci` would fall back to a source build that
+# fails. Reject Node >=26 with a clear error instead of a cryptic gyp failure.
+# Supported range mirrors `engines.node` in package.json (">=20 <26").
+node_version_ok() {
+  local node_bin="${1:-node}" ver major
+  command -v "$node_bin" >/dev/null 2>&1 || return 1
+  ver="$( "$node_bin" --version 2>/dev/null )" || return 1
+  major="${ver#v}"; major="${major%%.*}"
+  case "$major" in
+    ''|*[!0-9]*) return 1 ;;
+  esac
+  [ "$major" -ge 20 ] && [ "$major" -lt 26 ]
+}
+
+# ---------------------------------------------------------------------------
 # Main flow
 # ---------------------------------------------------------------------------
 
@@ -134,6 +152,16 @@ if [ "$DRY_RUN" -eq 1 ]; then
   print_warn "DRY-RUN: install commands will be shown but NOT executed."
 fi
 echo
+
+# Reject an unsupported Node major up front (see node_version_ok above).
+if ! node_version_ok node; then
+  print_error "Unsupported Node version: $(node --version 2>/dev/null || echo 'not found')."
+  echo "  Hermes Commander requires Node >=20 and <26 (better-sqlite3 has no"
+  echo "  prebuild for Node 26 yet). Install Node 20 or 22 LTS, e.g.:"
+  echo "    nvm install 22 && nvm use 22"
+  echo "  then re-run ./install.sh."
+  exit 1
+fi
 
 # Pass 1: check every requirement, collect installed/missing.
 installed=()
