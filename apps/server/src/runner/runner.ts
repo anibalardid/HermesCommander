@@ -779,6 +779,33 @@ export class MissionRunner {
           `The review of PR #${parent.review_pr_number} produced these REAL findings (from the review subagents' outputs). Plan the fixes to address them:\n${reviewFindings.join('\n').slice(0, 6000)}`,
         );
       }
+
+      // Also surface the PR's ACTUAL review comments (with file paths) so the
+      // planner fixes what the reviewers actually flagged, not just what the
+      // summary LLM chose to repeat. This is the authoritative source for a fix.
+      try {
+        const project = mission.project_id ? this.store.getProject(mission.project_id) : undefined;
+        if (project?.path) {
+          const { getPrDetail } = await import('../git/github.js');
+          const pr = await getPrDetail(project.path, parent.review_pr_number);
+          const prComments: string[] = [];
+          if (pr.body?.trim()) prComments.push(`PR description:\n${pr.body.trim()}`);
+          for (const thread of pr.commentThreads ?? []) {
+            const loc = thread.path ? ` (file: ${thread.path})` : '';
+            for (const c of thread.comments ?? []) {
+              if (c.body?.trim()) prComments.push(`Review comment${loc} by ${c.author ?? 'unknown'}:\n${c.body.trim()}`);
+            }
+          }
+          if (prComments.length > 0) {
+            context.push(
+              `The ACTUAL review comments on PR #${parent.review_pr_number} (authoritative — fix exactly these):\n${prComments.join('\n\n').slice(0, 8000)}`,
+            );
+          }
+        }
+      } catch {
+        // PR detail unavailable (e.g. PR doesn't exist) — fall back to the
+        // review subagent findings above.
+      }
     }
     const res = await runPlanner(this.store, mission, cfg, objective, context, parent.subagent_ids ? JSON.parse(parent.subagent_ids) : undefined);
     if (!res.ok) return { ok: false, reason: res.reason };
