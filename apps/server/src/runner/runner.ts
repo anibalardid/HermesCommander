@@ -1083,12 +1083,25 @@ export class MissionRunner {
     const tasks = this.store
       .listStaleActiveTasks(activeRunStates)
       .concat(this.store.listTasksStuckDoing())
-      .map((t) => ({
-        taskId: t.id,
-        runState: t.run_state,
-        state: t.state,
-        alive: this.taskProcesses.has(t.id),
-      }));
+      .map((t) => {
+        // A task is genuinely alive if it has its own OS process (a leaf
+        // subagent). An orchestrator in `delegating`/`planning` has no process
+        // of its own — it runs subtasks that DO have processes. Mirror the
+        // watchdog's logic: it's legitimately working as long as it still has
+        // a subtask actively running (doing) or pending to run. `planning` is
+        // a transient state where the orchestrator is running the planner in
+        // the background (subtasks don't exist yet), so it's always alive.
+        let alive = this.taskProcesses.has(t.id);
+        if (!alive && t.run_state === 'planning') {
+          alive = true;
+        } else if (!alive && t.run_state === 'delegating') {
+          const children = this.store.listTasks(t.mission_id).filter((c) => c.parent_id === t.id);
+          const hasActive = children.some((c) => c.state === 'doing' || c.run_state === 'running');
+          const hasPending = children.some((c) => c.state === 'todo');
+          alive = hasActive || hasPending;
+        }
+        return { taskId: t.id, runState: t.run_state, state: t.state, alive };
+      });
     const missions = this.store
       .listMissionsByState('running')
       .map((m) => ({ missionId: m.id, state: m.state, alive: this.sessions.has(m.id) }));
