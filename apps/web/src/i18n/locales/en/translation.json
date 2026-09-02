@@ -90,6 +90,7 @@
     "noMissions": "No missions yet.",
     "nameRequired": "Name is required",
     "pathRequired": "Path is required",
+    "pathExists": "A project already exists at this path.",
     "scanning": "Scanning…",
     "gitRepoDetected": "Git repo detected",
     "activeBranch": "Active branch",

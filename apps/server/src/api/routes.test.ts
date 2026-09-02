@@ -75,7 +75,7 @@ describe('Missions API', () => {
     const res = await app.inject({
       method: 'POST',
       url: '/api/projects',
-      payload: { action: 'open', path: '/tmp', name: 'MissionTest' },
+      payload: { action: 'open', path: '/tmp/mission-test', name: 'MissionTest' },
     });
     projectId = res.json().id;
   });

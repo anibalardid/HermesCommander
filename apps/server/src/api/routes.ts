@@ -85,7 +85,7 @@ export function registerApiRoutes(app: FastifyInstance, store: Store, hub: Event
     }
   });
 
-  app.post('/api/projects', async (req) => {
+  app.post('/api/projects', async (req, reply) => {
     const body = req.body as {
       action: 'open' | 'create' | 'clone' | 'group';
       path?: string; newPath?: string; cloneUrl?: string; destination?: string;
@@ -116,6 +116,13 @@ export function registerApiRoutes(app: FastifyInstance, store: Store, hub: Event
       const guardErr = validateProjectPath(path);
       if (guardErr) {
         return { error: guardErr };
+      }
+      // Reject a path that already belongs to an existing project (normalized
+      // to ignore trailing slashes) so the same folder can't be added twice.
+      const norm = (p: string) => p.replace(/\/+$/, '');
+      const dup = store.listProjects().find((p) => norm(p.path) === norm(path));
+      if (dup) {
+        return reply.code(409).send({ error: `project already exists at this path (${dup.name})` });
       }
     }
     const name = body.name ?? (path?.split(/[\\/]/).pop() ?? 'Project');

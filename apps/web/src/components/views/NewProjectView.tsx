@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
-import { FolderOpen, GitBranch, Loader2 } from '@/components/icons';
+import { FolderOpen, GitBranch, Loader2, XCircle } from '@/components/icons';
 import { useStore } from '@/store';
 import { api } from '@/lib/api';
 import { Button } from '@/components/ui';
@@ -16,6 +16,7 @@ export function NewProjectView() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const createProject = useStore((s) => s.createProject);
+  const projects = useStore((s) => s.projects);
 
   const [name, setName] = useState('');
   const [path, setPath] = useState('');
@@ -75,6 +76,7 @@ export function NewProjectView() {
   async function submit() {
     if (!name.trim()) { setError(t('project.nameRequired')); return; }
     if (!path.trim()) { setError(t('project.pathRequired')); return; }
+    if (pathExists) { setError(t('project.pathExists')); return; }
     setBusy(true);
     setError(null);
     try {
@@ -112,6 +114,14 @@ export function NewProjectView() {
     ...owners.orgs.map((o) => ({ value: o, label: o })),
   ];
 
+  // Normalize a path for comparison: strip trailing slashes so
+  // "/a/b/" and "/a/b" are treated as the same path.
+  const normalizePath = (p: string) => p.replace(/\/+$/, '');
+  // Whether the chosen path already belongs to an existing project. When true,
+  // the Save button is disabled and an inline error is shown — you can't add
+  // the same path twice.
+  const pathExists = !!path.trim() && projects.some((p) => normalizePath(p.path) === normalizePath(path.trim()));
+
   return (
     <BottomSheet open onClose={() => navigate('/')} title={t('nav.addProject')}>
       {/* 1. Name — required */}
@@ -141,6 +151,13 @@ export function NewProjectView() {
 
       {/* Scan result */}
       <div className="mt-3">
+        {pathExists && (
+          <div className="mb-2 flex items-center gap-2 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+            <XCircle className="h-3.5 w-3.5 shrink-0" />
+            <span>{t('project.pathExists')}</span>
+          </div>
+        )}
+
         {scanning && (
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <Loader2 className="h-3.5 w-3.5 animate-spin" /> {t('project.scanning')}
@@ -238,7 +255,7 @@ export function NewProjectView() {
 
       {error && <div className="mt-3 rounded-md border border-destructive/40 bg-destructive/10 px-2 py-1.5 text-xs text-destructive">{error}</div>}
 
-      <Button onClick={submit} disabled={busy} className="mt-4 w-full">
+      <Button onClick={submit} disabled={busy || pathExists} className="mt-4 w-full">
         {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
         {busy ? t('project.creating') : t('common.save')}
       </Button>

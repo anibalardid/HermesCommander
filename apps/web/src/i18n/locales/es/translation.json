@@ -90,6 +90,7 @@
     "noMissions": "Aún no hay misiones.",
     "nameRequired": "El nombre es obligatorio",
     "pathRequired": "La ruta es obligatoria",
+    "pathExists": "Ya existe un proyecto en esta ruta.",
     "scanning": "Escaneando…",
     "gitRepoDetected": "Repo de git detectado",
     "activeBranch": "Rama activa",
