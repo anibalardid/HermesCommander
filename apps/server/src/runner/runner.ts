@@ -983,6 +983,12 @@ export class MissionRunner {
       .concat(this.store.listTasksStuckDoing());
     for (const t of stale) {
       if (this.taskProcesses.has(t.id)) continue; // genuinely running
+      // An orchestrator that is currently executing its delegation loop is
+      // genuinely working even though it has no process of its own (only its
+      // subtasks do). runningOrchestrators is set for the entire duration of
+      // runOrchestratorInner, so skip it — otherwise the watchdog can race the
+      // orchestrator and mark it failed while a subtask is still running.
+      if (this.runningOrchestrators.has(t.id)) continue;
       // An orchestrator in `delegating` has no process of its own — it runs
       // subtasks that DO have processes. It is legitimately working as long as
       // it still has subtasks to run (pending or active). Only mark it failed
