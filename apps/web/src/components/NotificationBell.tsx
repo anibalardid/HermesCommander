@@ -147,19 +147,21 @@ function NotificationItem({
 }) {
   const { t } = useTranslation();
   const unread = notification.read === 0;
+  // Map the notification type to a status color dot shown to the left of the
+  // title, so the user can tell at a glance whether the item is a completion
+  // (green), a failure (red), or something else (neutral).
+  const dotCls = NOTIF_DOT[notification.type] ?? 'bg-muted-foreground/50';
   return (
     <li
       className={`relative flex items-start gap-2 px-3 py-2.5 ${
         unread ? 'border-l-2 border-l-primary bg-accent/40' : ''
       }`}
     >
-      {unread && (
-        <span
-          aria-hidden="true"
-          className="absolute left-1.5 top-3 h-1.5 w-1.5 rounded-full bg-primary"
-        />
-      )}
-      <div className="min-w-0 flex-1 pl-1">
+      <span
+        aria-hidden="true"
+        className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${dotCls}`}
+      />
+      <div className="min-w-0 flex-1">
         <div className="flex items-baseline justify-between gap-2">
           <span className="truncate text-sm font-medium">{notification.title}</span>
           <span className="shrink-0 text-[11px] text-muted-foreground">
@@ -179,3 +181,17 @@ function NotificationItem({
     </li>
   );
 }
+
+// Status color per notification type (mirrors the run-state colors used in the
+// kanban badges: green = done, red = failed, blue = running/active).
+const NOTIF_DOT: Record<string, string> = {
+  task_done: 'bg-green-500',
+  subtask_done: 'bg-green-500',
+  mission_done: 'bg-green-500',
+  task_failed: 'bg-red-500',
+  subtask_failed: 'bg-red-500',
+  mission_failed: 'bg-red-500',
+  task_running: 'bg-blue-500',
+  subtask_running: 'bg-blue-500',
+  mission_running: 'bg-blue-500',
+};
