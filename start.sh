@@ -123,26 +123,45 @@ start_api() {
 }
 
 start_web() {
-  print_status "Starting frontend (Vite) on port $WEB_PORT..."
-  # Force Vite onto EXACTLY $WEB_PORT (--strictPort) so it never silently
+  local target="$WEB_PORT"
+  # Resolve a free port AT START TIME. The configured port (default 5173) may
+  # be held by another app (e.g. OpenCode) — even when we just stopped OUR
+  # frontend, the foreign app is still there. Auto-pick the next free port so
+  # a clean start and a restart both work.
+  if port_held_by_other "$target" "$ROOT"; then
+    local free
+    free="$(pick_free_port "$target")"
+    if [ -n "$free" ]; then
+      print_warn "Port $target is in use by another application."
+      print_warn "  Auto-selecting free port $free for the frontend."
+      target="$free"
+    else
+      print_error "No free port available near $target."
+      return 1
+    fi
+  fi
+  print_status "Starting frontend (Vite) on port $target..."
+  # Force Vite onto EXACTLY $target (--strictPort) so it never silently
   # auto-increments to a different port when the configured one is taken —
   # otherwise the printed URL would be wrong. --port also overrides the
   # hardcoded 5173 in vite.config.ts. Invoke vite directly to avoid nested-npm
   # argument forwarding (which swallows --port/--strictPort through workspaces).
-  ( cd "$ROOT/apps/web" && nohup "$ROOT/node_modules/.bin/vite" --port "$WEB_PORT" --strictPort --host 0.0.0.0 >"$WEB_LOG" 2>&1 & echo $! >"$WEB_PID_FILE" )
+  ( cd "$ROOT/apps/web" && nohup "$ROOT/node_modules/.bin/vite" --port "$target" --strictPort --host 0.0.0.0 >"$WEB_LOG" 2>&1 & echo $! >"$WEB_PID_FILE" )
   # Verification: a live process from THIS repo must actually be listening on
-  # $WEB_PORT. We cannot just check "port open" — another app (e.g. Laravel on
+  # $target. We cannot just check "port open" — another app (e.g. Laravel on
   # 5173) may already hold the port, and with --strictPort Vite fails to bind
   # and exits. Only report success when the port is held by OUR process.
-  if wait_for_repo_pid_on_port "$WEB_PORT" "$ROOT" 30; then
-    print_ok "Frontend started correctly (port $WEB_PORT open)."
+  if wait_for_repo_pid_on_port "$target" "$ROOT" 30; then
+    print_ok "Frontend started correctly (port $target open)."
+    WEB_PORT="$target"
     return 0
   elif [ -f "$WEB_PID_FILE" ] && pid_alive "$(cat "$WEB_PID_FILE")"; then
     print_ok "Frontend started (process alive, pid $(cat "$WEB_PID_FILE"))."
+    WEB_PORT="$target"
     return 0
   else
     print_error "The frontend did not start. Check $WEB_LOG"
-    print_warn "Port $WEB_PORT may be held by another application (see $WEB_LOG)."
+    print_warn "Port $target may be held by another application (see $WEB_LOG)."
     return 1
   fi
 }
@@ -270,25 +289,11 @@ else
   WEB_PIDS=""
 fi
 
-# 2b. Pre-flight port conflict / auto-pick ----------------------------------
-# If our frontend is ALREADY running (any port), no conflict — we'll offer
-# stop/restart below. Otherwise, if the configured WEB_PORT is held by another
-# app (e.g. OpenCode or Laravel), auto-pick the next free port and start there
-# rather than aborting.
-if [ -z "$DETECTED_WEB_PORT" ] && port_held_by_other "$WEB_PORT" "$ROOT"; then
-  free="$(pick_free_port "$WEB_PORT")"
-  if [ -n "$free" ]; then
-    print_warn "Port $WEB_PORT is in use by another application."
-    print_warn "  Auto-selecting free port $free for the frontend."
-    WEB_PORT="$free"
-  else
-    print_error "No free port available near $WEB_PORT."
-    exit 1
-  fi
-fi
-
-# Same for the API: if its configured port is held by another app (and it's not
-# ours), auto-pick a free port.
+# 2b. Pre-flight port auto-pick (API only) ----------------------------------
+# The frontend's port is resolved inside start_web() at the moment it starts,
+# because it must handle both a clean start AND a restart (where our frontend
+# was just stopped but a foreign app may still hold the configured port).
+# Here we only pre-resolve the API port, which must match what dev:server uses.
 if [ -z "$API_PIDS" ] && port_held_by_other "$API_PORT" "$ROOT"; then
   free="$(pick_free_port "$API_PORT")"
   if [ -n "$free" ]; then
