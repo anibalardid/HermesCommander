@@ -104,7 +104,10 @@ export function SourceControlTab({ adapter, tasks = [] }: { adapter: SourceApi; 
   // renders — otherwise the fetch effect below would loop forever.
   const activeAdapter: SourceApi = useMemo(
     () => (selectedTask ? makeTaskSourceApi(selectedTask.id, adapter.projectId) : adapter),
-    [selectedTask, adapter],
+    // Depend on the task ID (stable) rather than the task object, which is
+    // recreated whenever the parent's `tasks` array identity changes — that
+    // would re-create the adapter (and re-fetch) on unrelated re-renders.
+    [selectedTask?.id, adapter],
   );
 
   const load = useCallback(async () => {

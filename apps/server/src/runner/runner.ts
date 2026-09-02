@@ -2,7 +2,6 @@ import type { Store, MissionRow, TaskRow, SubagentRecipeRow } from '../db/store.
 import { EventHub } from './ws.js';
 import { TmuxSession } from './tmux.js';
 import { createWorktree, removeWorktree, listWorktrees } from '../git/worktree.js';
-import { checkoutBranch } from '../git/branch.js';
 import { spawn } from 'node:child_process';
 import { runPlanner, type PlannedSubtask } from './planner.js';
 import { notify } from '../notifications.js';
@@ -309,7 +308,12 @@ export class MissionRunner {
     const task = this.store.getTask(taskId);
     if (!task) return null;
     const cfg = this.resolveTaskConfig(task);
-    if (cfg.gitStrategy !== 'worktree') return null;
+    // Both 'worktree' and 'branch' strategies get an isolated worktree. For
+    // 'worktree' we always create a fresh mission/<title> branch; for 'branch'
+    // the user picked a specific target branch (cfg.branch) to work on, so the
+    // worktree checks out that branch instead. 'none' works directly in the
+    // project repo.
+    if (cfg.gitStrategy !== 'worktree' && cfg.gitStrategy !== 'branch') return null;
     const mission = this.store.getMission(task.mission_id);
     const project = mission ? this.store.getProject(mission.project_id) : undefined;
     if (!project) return null;
@@ -449,7 +453,7 @@ export class MissionRunner {
 
     // 1. Ensure the orchestrator has a worktree (if its git strategy needs one).
     const cfg = this.resolveTaskConfig(task);
-    if (cfg.gitStrategy === 'worktree' && !cfg.worktreePath) {
+    if ((cfg.gitStrategy === 'worktree' || cfg.gitStrategy === 'branch') && !cfg.worktreePath) {
       await this.createWorktreeForTask(task.id);
     }
 
@@ -535,21 +539,14 @@ export class MissionRunner {
     // the mission for older data.
     const cfg = this.resolveTaskConfig(task);
 
-    // If the task uses a worktree strategy but doesn't have one yet, create it
-    // now (outside the project folder) so the subagent has an isolated place
-    // to work. This is what makes per-parent-task worktrees work on run.
-    if (cfg.gitStrategy === 'worktree' && !cfg.worktreePath) {
+    // If the task uses a worktree or branch strategy, ensure it has an
+    // isolated worktree. 'worktree' → fresh mission/<title> branch; 'branch' →
+    // checks out the user-picked target branch (cfg.branch) in the worktree.
+    // 'none' works directly in the project repo. Critically, we NEVER check out
+    // a feature/branch strategy's branch in the project's original directory —
+    // every non-'none' strategy works in an isolated worktree.
+    if ((cfg.gitStrategy === 'worktree' || cfg.gitStrategy === 'branch') && !cfg.worktreePath) {
       await this.createWorktreeForTask(task.id);
-    }
-
-    // If the task uses a branch strategy, check out the requested branch
-    // (creating it from the current HEAD if it doesn't exist) in the project
-    // repo so the subagent works on that branch.
-    if (cfg.gitStrategy === 'branch' && cfg.branch) {
-      const project = this.store.getProject(mission.project_id);
-      if (project?.path) {
-        await checkoutBranch(project.path, cfg.branch);
-      }
     }
 
     // Mark the task as in-progress and emit so the board updates live.

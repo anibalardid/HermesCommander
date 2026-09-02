@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { ArrowLeft, Plus, Pencil, Trash2, GitBranch, PanelRight, ExternalLink, GitPullRequest, Menu } from '@/components/icons';
@@ -18,6 +18,10 @@ export function ProjectDetailView() {
   const navigate = useNavigate();
   const { t } = useTranslation();
   const project = useStore((s) => s.projects.find((p) => p.id === id));
+  // Memoize workspace adapters so the source-control tab doesn't re-fetch on
+  // every live-poll re-render (see MissionDetailView for the same fix).
+  const sourceApi = useMemo(() => makeProjectSourceApi(id ?? ''), [id]);
+  const filesApi = useMemo(() => makeProjectFilesApi(id ?? ''), [id]);
   const loading = useStore((s) => s.loading);
   const allMissions = useStore((s) => s.missions);
   const missions = allMissions.filter((m) => m.project_id === id);
@@ -194,8 +198,8 @@ export function ProjectDetailView() {
           open={workspaceOpen}
           onClose={() => setWorkspaceOpen(false)}
           scope="project"
-          sourceApi={makeProjectSourceApi(project.id)}
-          filesApi={makeProjectFilesApi(project.id)}
+          sourceApi={sourceApi}
+          filesApi={filesApi}
           width={workspaceWidth}
           onWidthChange={setWorkspaceWidth}
           cwd={proj.path || undefined}

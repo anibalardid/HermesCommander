@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
+import { describe, it, expect, beforeAll, beforeEach, afterAll, vi } from 'vitest';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -6,6 +6,7 @@ import { EventEmitter } from 'node:events';
 import { Store } from '../db/store.js';
 import { EventHub } from './ws.js';
 import { MissionRunner } from './runner.js';
+import { spawn as spawnMock } from 'node:child_process';
 
 // Mock child_process.spawn so runSubtask doesn't actually launch `hermes`.
 // Emits a fake stdout line with a session_id and closes with code 0.
@@ -32,6 +33,9 @@ let store: Store;
 let dbDir: string;
 let projectId: string;
 let runner: MissionRunner;
+// Captured from the mocked spawn — [command, args]. Lets tests assert where the
+// subagent was told to work (the worktree vs the project dir).
+let lastSpawnArgs: string[] = [];
 
 const fakeApp = { get: () => {} } as never;
 
@@ -47,9 +51,28 @@ beforeAll(() => {
   runner = new MissionRunner(store, hub);
 });
 
+// Reset the captured spawn args between tests.
+beforeEach(() => { lastSpawnArgs = []; });
+
 afterAll(() => {
   rmSync(dbDir, { recursive: true, force: true });
 });
+
+// Helper to mock the module's spawn to record its arguments. spawn's signature
+// is spawn(command, args[], options), so `args[1]` is the flag array.
+function captureSpawn(spawnFn: ReturnType<typeof vi.fn>) {
+  spawnFn.mockImplementation((...args: unknown[]) => {
+    lastSpawnArgs = (args[1] as string[]) ?? [];
+    const proc = new EventEmitter() as EventEmitter & { stdout: EventEmitter; stderr: EventEmitter };
+    proc.stdout = new EventEmitter();
+    proc.stderr = new EventEmitter();
+    setImmediate(() => {
+      proc.stdout.emit('data', 'session_id: test-session-123\n');
+      proc.emit('close', 0);
+    });
+    return proc;
+  });
+}
 
 function makeMission(name: string) {
   return store.createMission({
@@ -169,6 +192,32 @@ describe('task execution (runTask)', () => {
     } finally {
       spy.mockRestore();
     }
+  });
+
+  it('branch-strategy subtask works in its assigned worktree, not the project dir', async () => {
+    const m = makeMission('BranchStrategy');
+    const parent = store.createTask({
+      mission_id: m.id, title: 'Orch Branch', description: 'parent',
+      state: 'todo', parent_id: null, depends_on: '[]', agent_type: 'hermes',
+      agent_llm: null, agent_system_prompt: null, sort_order: 0,
+      git_strategy: 'branch', branch: 'feature/x', worktree_path: '/tmp/hc-branch-wt',
+    });
+    const task = store.createTask({
+      mission_id: m.id, title: 'Write on branch', description: 'do it',
+      state: 'todo', parent_id: parent.id, depends_on: '[]', agent_type: 'codex',
+      agent_llm: null, agent_system_prompt: null, sort_order: 0,
+    });
+
+    captureSpawn(spawnMock as ReturnType<typeof vi.fn>);
+    const result = await runner.runTask(task.id);
+    expect(result.ok).toBe(true);
+
+    // The subagent's `--in` must point at the worktree (where the branch was
+    // checked out), NOT at the project's original dir — otherwise the branch
+    // strategy would have mutated the real project checkout.
+    const inFlagIdx = lastSpawnArgs.indexOf('--in');
+    expect(inFlagIdx).toBeGreaterThan(-1);
+    expect(lastSpawnArgs[inFlagIdx + 1]).toBe('/tmp/hc-branch-wt');
   });
 });
 

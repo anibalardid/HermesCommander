@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Play, Square, Send, ChevronDown, ChevronRight, Loader2, Columns, List, Brain, Plus, Pencil, Trash2, ArrowLeft, RotateCcw, GitBranch, Folder, PanelRight, GitPullRequest, ExternalLink, AlertTriangle, CheckCircle2, XCircle, Settings, Maximize2, X, RefreshCw, GitCommit, Menu } from '@/components/icons';
@@ -85,6 +85,15 @@ export function MissionDetailView() {
   const mobileNavOpen = useStore((s) => s.mobileNavOpen);
   const setMobileNavOpen = useStore((s) => s.setMobileNavOpen);
   const liveTasks = useStore((s) => s.liveTasks);
+  // Memoize the workspace adapters. They close over stable values (mission id,
+  // project id/path) but the view re-renders on every live-poll tick (~5s).
+  // Recreating them each render would make SourceControlTab's fetch effect
+  // re-run on every poll → the source-control panel reloads forever.
+  const sourceApi = useMemo(
+    () => makeMissionSourceApi(id ?? '', mission?.project_id ?? ''),
+    [id, mission?.project_id],
+  );
+  const filesApi = useMemo(() => makeMissionFilesApi(id ?? ''), [id]);
   const [confirmDeleteMission, setConfirmDeleteMission] = useState(false);
   const [confirmDeleteTask, setConfirmDeleteTask] = useState<Task | null>(null);
   const [deleteStep, setDeleteStep] = useState<'worktree' | 'confirm' | null>(null);
@@ -955,8 +964,8 @@ export function MissionDetailView() {
           onClose={() => setWorkspaceOpen(false)}
           scope="mission"
           logs={logs}
-          sourceApi={makeMissionSourceApi(mission.id, project?.id ?? '')}
-          filesApi={makeMissionFilesApi(mission.id)}
+          sourceApi={sourceApi}
+          filesApi={filesApi}
           width={workspaceWidth}
           onWidthChange={setWorkspaceWidth}
           cwd={project?.path ?? undefined}
