@@ -91,8 +91,10 @@ start_db() {
 start_api() {
   print_status "Starting API (Fastify) on port $API_PORT..."
   ( cd "$ROOT" && nohup npm run dev:server >"$API_LOG" 2>&1 & echo $! >"$API_PID_FILE" )
-  # Verification: live process (PID file) + open port as a secondary signal.
-  if wait_for_port "$API_PORT" 30; then
+  # Verification: OUR repo's process must actually be listening on $API_PORT.
+  # A plain "port open" check would wrongly report success if another app
+  # already holds the port while our API failed to bind.
+  if wait_for_repo_pid_on_port "$API_PORT" "$ROOT" 30; then
     print_ok "API started correctly (port $API_PORT open)."
     return 0
   elif [ -f "$API_PID_FILE" ] && pid_alive "$(cat "$API_PID_FILE")"; then
@@ -100,15 +102,24 @@ start_api() {
     return 0
   else
     print_error "The API did not start. Check $API_LOG"
+    print_warn "Port $API_PORT may be held by another application."
     return 1
   fi
 }
 
 start_web() {
   print_status "Starting frontend (Vite) on port $WEB_PORT..."
-  ( cd "$ROOT" && nohup npm run dev:web >"$WEB_LOG" 2>&1 & echo $! >"$WEB_PID_FILE" )
-  # Verification: live process (PID file) + open port as a secondary signal.
-  if wait_for_port "$WEB_PORT" 30; then
+  # Force Vite onto EXACTLY $WEB_PORT (--strictPort) so it never silently
+  # auto-increments to a different port when the configured one is taken —
+  # otherwise the printed URL would be wrong. --port also overrides the
+  # hardcoded 5173 in vite.config.ts. Invoke vite directly to avoid nested-npm
+  # argument forwarding (which swallows --port/--strictPort through workspaces).
+  ( cd "$ROOT/apps/web" && nohup "$ROOT/node_modules/.bin/vite" --port "$WEB_PORT" --strictPort --host 0.0.0.0 >"$WEB_LOG" 2>&1 & echo $! >"$WEB_PID_FILE" )
+  # Verification: a live process from THIS repo must actually be listening on
+  # $WEB_PORT. We cannot just check "port open" — another app (e.g. Laravel on
+  # 5173) may already hold the port, and with --strictPort Vite fails to bind
+  # and exits. Only report success when the port is held by OUR process.
+  if wait_for_repo_pid_on_port "$WEB_PORT" "$ROOT" 30; then
     print_ok "Frontend started correctly (port $WEB_PORT open)."
     return 0
   elif [ -f "$WEB_PID_FILE" ] && pid_alive "$(cat "$WEB_PID_FILE")"; then
@@ -116,6 +127,7 @@ start_web() {
     return 0
   else
     print_error "The frontend did not start. Check $WEB_LOG"
+    print_warn "Port $WEB_PORT may be held by another application (see $WEB_LOG)."
     return 1
   fi
 }
@@ -129,6 +141,40 @@ port_in_use() {
   local port="${1:-}"
   [ -n "$port" ] || return 1
   [ -n "$(pids_on_port "$port")" ]
+}
+
+# port_held_by_other <port> <repo_root> — true (0) if the port is listening but
+# NONE of its holders belong to this repo (i.e. another application owns it).
+# We treat a port as "safe to start on" only when it is free OR already held by
+# our own repo (idempotent restart). Anything else blocks startup: starting
+# there would silently collide (or, with --strictPort, fail to bind).
+port_held_by_other() {
+  local port="${1:-}" root="${2:-}" pid any_ours=0
+  [ -n "$port" ] || return 1
+  for pid in $(pids_on_port "$port"); do
+    if pid_belongs_to_repo "$pid" "$root"; then
+      any_ours=1
+    else
+      return 0   # a foreign holder found → blocked
+    fi
+  done
+  return 1
+}
+
+# wait_for_repo_pid_on_port <port> <repo_root> <seconds> — waits until a process
+# from this repo is listening on the port. Unlike wait_for_port (which any app
+# satisfies), this confirms OUR frontend/API actually bound the port.
+wait_for_repo_pid_on_port() {
+  local port="${1:-}" root="${2:-}" timeout="${3:-25}" i
+  [ -n "$port" ] && [ -n "$root" ] || return 1
+  for i in $(seq 1 "$timeout"); do
+    if ! port_held_by_other "$port" "$root"; then
+      # Not blocked by a foreign app; see if OUR process is up.
+      [ -n "$(pids_on_port_for_repo "$port" "$root")" ] && return 0
+    fi
+    sleep 1
+  done
+  return 1
 }
 
 # wait_for_port <port> <seconds> — waits for the port to open. 0 if it opened.
@@ -186,6 +232,29 @@ fi
 # 2. Detect THIS repo's services already running ---------------------------
 API_PIDS="$(api_pids)"
 WEB_PIDS="$(web_pids)"
+
+# 2b. Pre-flight port conflict check ----------------------------------------
+# Refuse to start if a configured port (API or frontend) is currently held by
+# ANOTHER application (not this repo). This is exactly the case that silently
+# broke startup before: vite auto-incremented off a taken port while the script
+# still claimed success on the configured one (e.g. Laravel already on 5173).
+PORT_CONFLICT=0
+if port_held_by_other "$API_PORT" "$ROOT"; then
+  print_error "Port $API_PORT is already in use by ANOTHER application."
+  print_warn "  The API cannot bind there. Stop that app or set PORT=<free> ./start.sh"
+  PORT_CONFLICT=1
+fi
+if port_held_by_other "$WEB_PORT" "$ROOT"; then
+  print_error "Port $WEB_PORT is already in use by ANOTHER application."
+  print_warn "  The frontend cannot bind there. Stop that app or set WEB_PORT=<free> ./start.sh"
+  PORT_CONFLICT=1
+fi
+if [ "$PORT_CONFLICT" -eq 1 ]; then
+  echo
+  print_error "Startup aborted: a configured port is occupied by another application."
+  echo "  Free the ports (or rerun with PORT/WEB_PORT pointing to free ports), then retry."
+  exit 1
+fi
 
 # 3. Single confirmation before any destructive action ---------------------
 # Only asked if there is something to stop. A single prompt covers API and
@@ -278,6 +347,15 @@ echo
 
 if [ "$FAIL" -eq 0 ]; then
   print_ok "All services started correctly."
+  echo
+  echo "─────────────────────────────────────────────────────"
+  echo "  Frontend:  http://127.0.0.1:${WEB_PORT}/"
+  echo "  API:       http://127.0.0.1:${API_PORT}"
+  echo "  DB:        ${DB_PATH}"
+  echo "─────────────────────────────────────────────────────"
+  echo
+  print_ok "Open the frontend at:  ${C_BOLD}http://127.0.0.1:${WEB_PORT}/${C_RESET}"
+  echo
   exit 0
 else
   print_error "One or more services did not start. Check the logs in $DATA_DIR/."

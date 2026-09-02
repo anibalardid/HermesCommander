@@ -17,6 +17,7 @@ export function SearchableSelect({
   placeholder = 'Select…',
   disabled = false,
   sort = true,
+  allowCustom = false,
   className,
 }: {
   value: string;
@@ -25,6 +26,9 @@ export function SearchableSelect({
   placeholder?: string;
   disabled?: boolean;
   sort?: boolean;
+  /** When true, lets the user type a value not in the list (e.g. a brand-new
+   *  git branch) — a "use '…'" row appears when the query has no exact match. */
+  allowCustom?: boolean;
   className?: string;
 }) {
   const [open, setOpen] = useState(false);
@@ -47,6 +51,9 @@ export function SearchableSelect({
   }, [sorted, query]);
 
   const selected = options.find((o) => o.value === value);
+  // In allowCustom mode, the typed query can itself become the value (a
+  // branch the user typed that doesn't exist yet). Show it as selected.
+  const customSelected = allowCustom && !!query.trim() && value === query.trim();
 
   // Close on outside click.
   useEffect(() => {
@@ -58,9 +65,6 @@ export function SearchableSelect({
     return () => document.removeEventListener('mousedown', onDocClick);
   }, [open]);
 
-  // Reset highlight when the filtered list changes.
-  useEffect(() => setHighlight(0), [filtered.length, open]);
-
   // Keep the highlighted option in view.
   useEffect(() => {
     if (!open || !listRef.current) return;
@@ -68,8 +72,20 @@ export function SearchableSelect({
     el?.scrollIntoView({ block: 'nearest' });
   }, [highlight, open]);
 
+  // Reset highlight when the filtered list changes or the panel opens.
+  useEffect(() => setHighlight(0), [filtered.length, open]);
+
   function select(o: { value: string; label: string }) {
     onChange(o.value);
+    setOpen(false);
+    setQuery('');
+  }
+
+  // Commit the current typed query as the value (allowCustom mode).
+  function commitCustom() {
+    const q = query.trim();
+    if (!q) return;
+    onChange(q);
     setOpen(false);
     setQuery('');
   }
@@ -89,7 +105,12 @@ export function SearchableSelect({
       setHighlight((h) => Math.max(h - 1, 0));
     } else if (e.key === 'Enter') {
       e.preventDefault();
-      if (filtered[highlight]) select(filtered[highlight]);
+      const q = query.trim();
+      if (filtered[highlight]) {
+        select(filtered[highlight]);
+      } else if (allowCustom && q) {
+        commitCustom();
+      }
     } else if (e.key === 'Escape') {
       setOpen(false);
     }
@@ -110,8 +131,8 @@ export function SearchableSelect({
           open && 'ring-1 ring-ring'
         )}
       >
-        <span className={cn('truncate', !selected && 'text-muted-foreground')}>
-          {selected ? selected.label : placeholder}
+        <span className={cn('truncate', !selected && !customSelected && 'text-muted-foreground')}>
+          {selected ? selected.label : customSelected ? query.trim() : placeholder}
         </span>
         <ChevronDown className={cn('h-4 w-4 shrink-0 text-muted-foreground transition-transform', open && 'rotate-180')} />
       </button>
@@ -131,7 +152,7 @@ export function SearchableSelect({
             />
           </div>
           <div ref={listRef} className="max-h-56 overflow-y-auto">
-            {filtered.length === 0 && (
+            {filtered.length === 0 && !customSelected && (
               <div className="px-3 py-2 text-sm text-muted-foreground">No results</div>
             )}
             {filtered.map((o, i) => (
@@ -149,6 +170,19 @@ export function SearchableSelect({
                 {o.value === value && <Check className="h-4 w-4 shrink-0 text-primary" />}
               </button>
             ))}
+            {allowCustom && query.trim() && !filtered.some((o) => o.value === query.trim()) && (
+              <button
+                type="button"
+                onClick={commitCustom}
+                className={cn(
+                  'flex w-full items-center justify-between gap-2 border-t border-border px-3 py-2 text-left text-sm',
+                  filtered.length === 0 ? 'bg-accent text-accent-foreground' : 'text-foreground hover:bg-accent'
+                )}
+              >
+                <span className="truncate">Use “{query.trim()}”</span>
+                <Check className="h-4 w-4 shrink-0 text-primary" />
+              </button>
+            )}
           </div>
         </div>
       )}

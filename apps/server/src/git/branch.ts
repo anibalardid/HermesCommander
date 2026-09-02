@@ -15,19 +15,42 @@ export async function getCurrentBranch(repoPath: string): Promise<string | null>
 }
 
 /**
- * List all local branches of a repo (current branch marked). Returns [] if not
- * a git repo.
+ * List all branches of a repo that matter for task creation — every local
+ * branch plus remote-only branches (a branch checked out only in a worktree,
+ * or only pushed to origin, is a local/remote branch you may still want to
+ * target). Current branch is marked. Returns [] if not a git repo.
  */
 export async function listBranches(repoPath: string): Promise<Array<{ name: string; current: boolean }>> {
   try {
-    const { stdout } = await exec('git', ['-C', repoPath, 'branch', '--format=%(refname:short)|%(HEAD)'], { timeout: 5000 });
-    return stdout.split('\n')
-      .map((line) => line.trim())
-      .filter(Boolean)
-      .map((line) => {
-        const [name, head] = line.split('|');
-        return { name, current: head === '*' };
-      });
+    // `git branch -a` lists local + remote-tracking branches. Remote refs are
+    // prefixed `remotes/origin/<name>`; we strip that so the UI shows the same
+    // branch you'd check out (`origin/<name>` is the actual local ref you work
+    // on). Dedupe by name, preferring the local ref when both exist.
+    const { stdout } = await exec('git', ['-C', repoPath, 'branch', '-a', '--format=%(refname:short)|%(HEAD)'], { timeout: 8000 });
+    const map = new Map<string, boolean>();
+    for (const line of stdout.split('\n')) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+      const raw = trimmed.split('|')[0];
+      const head = trimmed.split('|')[1] === '*';
+      // Normalize: keep local branches as-is, drop the `remotes/` prefix and,
+      // for the common `origin/<branch>` case, drop the leading `origin/`.
+      let name = raw;
+      let local = true;
+      if (name.startsWith('remotes/origin/')) {
+        name = name.slice('remotes/origin/'.length);
+        local = false;
+      } else if (name.startsWith('remotes/')) {
+        name = name.slice('remotes/'.length);
+        local = false;
+      }
+      if (!name) continue;
+      // Prefer the local ref's "current" flag; a remote-only branch is not current.
+      const existing = map.get(name);
+      if (existing === true) continue;
+      map.set(name, local ? head : (map.get(name) ?? false));
+    }
+    return Array.from(map.entries()).map(([name, current]) => ({ name, current }));
   } catch {
     return [];
   }

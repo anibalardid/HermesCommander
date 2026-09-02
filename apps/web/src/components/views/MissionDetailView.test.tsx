@@ -23,8 +23,8 @@ const h = vi.hoisted(() => {
       // Orchestrator in 'doing' with its subtasks in 'todo' — reproduces the
       // bug where subtasks whose parent lives in another column silently vanish.
       { id: 't2', mission_id: 'm1', title: 'Orchestrator', description: null, state: 'doing', parent_id: null, depends_on: '[]', agent_type: null, agent_llm: null, agent_system_prompt: null, sort_order: 1, created_at: 0, updated_at: 0 },
-      { id: 't3', mission_id: 'm1', title: 'Subtask A', description: null, state: 'todo', parent_id: 't2', depends_on: '[]', agent_type: null, agent_llm: null, agent_system_prompt: null, sort_order: 0, created_at: 0, updated_at: 0 },
-      { id: 't4', mission_id: 'm1', title: 'Subtask B', description: null, state: 'todo', parent_id: 't2', depends_on: '[]', agent_type: null, agent_llm: null, agent_system_prompt: null, sort_order: 1, created_at: 0, updated_at: 0 },
+      { id: 't3', mission_id: 'm1', title: 'Subtask A', description: null, state: 'todo', run_state: 'idle', parent_id: 't2', depends_on: '[]', agent_type: null, agent_llm: null, agent_system_prompt: null, sort_order: 0, created_at: 0, updated_at: 0 },
+      { id: 't4', mission_id: 'm1', title: 'Subtask B', description: null, state: 'todo', run_state: 'idle', parent_id: 't2', depends_on: '[]', agent_type: null, agent_llm: null, agent_system_prompt: null, sort_order: 1, created_at: 0, updated_at: 0 },
     ],
     runs: [],
   };
@@ -32,6 +32,7 @@ const h = vi.hoisted(() => {
     missions: [mockMission],
     projects: [],
     agentsConfig: [],
+    liveTasks: {},
     loading: false, error: null, connected: false,
     load: vi.fn(), refresh: vi.fn(), connectWs: vi.fn(),
     createProject: vi.fn(), createMission: vi.fn(),
@@ -119,16 +120,17 @@ describe('MissionDetailView', () => {
     expect(await screen.findByText('Subtask B')).toBeInTheDocument();
   });
 
-  it('groups a family together and shows subtask legends', async () => {
+  it('groups a family together and shows subtask run-state badges', async () => {
     renderView();
     // The orchestrator (doing) pulls its whole family into the 'doing' column.
-    // Its subtasks (todo) must NOT appear in the 'todo' column — they travel
-    // with the parent. Each subtask shows a legend chip.
+    // Its subtasks (todo/idle) must NOT appear in the 'todo' column — they
+    // travel with the parent. Each subtask shows a run-state badge.
     expect(await screen.findByText('Orchestrator')).toBeInTheDocument();
     expect(await screen.findByText('Subtask A')).toBeInTheDocument();
     expect(await screen.findByText('Subtask B')).toBeInTheDocument();
-    // Subtask A/B are 'todo' → legend "waiting".
-    expect((await screen.findAllByText('task.legend.waiting')).length).toBeGreaterThanOrEqual(2);
+    // Subtask A/B are 'todo'/'idle' → the same run-state badge shown in the
+    // modal ("runState.idle"), not a separate "waiting" legend.
+    expect((await screen.findAllByText('task.runState.idle')).length).toBeGreaterThanOrEqual(2);
   });
 
   it('opens the workspace panel from the topbar button', async () => {

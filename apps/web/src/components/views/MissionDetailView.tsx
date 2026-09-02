@@ -16,6 +16,7 @@ import { VerdictBadge } from '@/components/VerdictBadge';
 import { WorkspacePanel, readSavedWidth, saveWidth } from '@/components/workspace/WorkspacePanel';
 import { makeMissionSourceApi } from '@/components/workspace/SourceControlTab';
 import { makeMissionFilesApi } from '@/components/workspace/FilesTab';
+import { SearchableSelect } from '@/components/SearchableSelect';
 import type { MissionDetail, Task, AgentRun, AgentLogEntry, SubagentRecipe, SourceStatus } from '@/lib/types';
 import { modalSheetCls } from '@/lib/utils';
 
@@ -553,17 +554,6 @@ export function MissionDetailView() {
     if (f.members.length === 0 && f.root.state === 'done') return 'done';
     return 'todo';
   };
-
-  // Human legend for a member of a family — how it's currently doing.
-  function subtaskLegend(tk: Task): string | null {
-    if (tk.state === 'done') return t('task.legend.done');
-    if (tk.state === 'blocked') return t('task.legend.blocked');
-    if (tk.state === 'doing') return t('task.legend.running');
-    if (tk.run_state === 'delegating') return t('task.legend.delegating');
-    return t('task.legend.waiting');
-  }
-
-  // Human-readable description of a history event (never raw JSON). Handles the
   // { before, after } payload shape used by task PATCHes (state + run_state),
   // and returns null for no-op transitions so the caller can hide them.
   function describeEvent(ev: { type: string; payload: Record<string, unknown> }): string | null {
@@ -845,19 +835,7 @@ export function MissionDetailView() {
                                 className="flex cursor-pointer items-center gap-2 rounded-md border border-dashed border-muted-foreground/30 px-2 py-1.5 text-xs transition-colors hover:border-primary/50"
                               >
                                 <div className="min-w-0 flex-1 truncate text-muted-foreground">{m.title}</div>
-                                <span
-                                  className={`shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-medium ${
-                                    m.state === 'done'
-                                      ? 'bg-green-500/15 text-green-600'
-                                      : m.state === 'blocked'
-                                        ? 'bg-red-500/15 text-red-600'
-                                        : m.state === 'doing'
-                                          ? 'bg-blue-500/15 text-blue-600'
-                                          : 'bg-muted text-muted-foreground'
-                                  }`}
-                                >
-                                  {subtaskLegend(m)}
-                                </span>
+                                <RunStateBadge state={displayRunState(m)} alive={liveTasks[m.id]} />
                               </div>
                             ))}
                           </div>
@@ -939,19 +917,7 @@ export function MissionDetailView() {
                                   className={`group flex w-full cursor-pointer items-center gap-2 rounded-md border-l-4 bg-muted/30 px-2 py-1.5 text-left text-xs transition-colors hover:bg-accent/40 ${stateColor(m.state)}`}
                                 >
                                   <div className="min-w-0 flex-1 truncate text-muted-foreground">{m.title}</div>
-                                  <span
-                                    className={`shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-medium ${
-                                      m.state === 'done'
-                                        ? 'bg-green-500/15 text-green-600'
-                                        : m.state === 'blocked'
-                                          ? 'bg-red-500/15 text-red-600'
-                                          : m.state === 'doing'
-                                            ? 'bg-blue-500/15 text-blue-600'
-                                            : 'bg-muted text-muted-foreground'
-                                    }`}
-                                  >
-                                    {subtaskLegend(m)}
-                                  </span>
+                                  <RunStateBadge state={displayRunState(m)} alive={liveTasks[m.id]} />
                                 </button>
                               ))}
                             </div>
@@ -2040,18 +2006,14 @@ function NewTaskModal({
           {gitStrategy === 'branch' && (
             <div>
               <label className="mb-1 block text-xs font-medium text-muted-foreground">{t('task.branch')}</label>
-              <input
-                list="hermes-commander-branch-options"
+              <SearchableSelect
                 value={branch}
-                onChange={(e) => setBranch(e.target.value)}
+                onChange={setBranch}
+                allowCustom
+                options={branches.map((b) => ({ value: b.name, label: b.name }))}
                 placeholder={t('task.branchPlaceholder')}
-                className="w-full rounded-md border border-input bg-background px-2 py-1.5 text-sm focus:border-primary focus:outline-none"
+                className="w-full"
               />
-              <datalist id="hermes-commander-branch-options">
-                {branches.map((b) => (
-                  <option key={b.name} value={b.name}>{b.current ? '● ' : ''}{b.name}</option>
-                ))}
-              </datalist>
               <p className="mt-1 text-[10px] text-muted-foreground">
                 {branches.length > 0
                   ? `${branches.length} ${t('task.branchesAvailable')} — ${t('task.branchNewHint')}`

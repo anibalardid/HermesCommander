@@ -656,6 +656,15 @@ export class MissionRunner {
     // A subtask (has a parent) is reported as a "subtask", not a "task", so the
     // notification bell distinguishes leaf work from orchestrator work.
     const isSubtask = !!task.parent_id;
+    // Where does this task live? Resolve its project name so the notification
+    // shows it before the task title (e.g. "Project · Implement fix").
+    let projectName = '';
+    const mission = this.store.getMission(missionId);
+    if (mission) {
+      const project = this.store.getProject(mission.project_id);
+      if (project?.name) projectName = project.name;
+    }
+    const taskBody = projectName ? `${projectName} · ${task.title}` : task.title;
     if (ok) {
       this.store.finishAgentRun(runId, 'done', 0);
       // Keep the session_id for telemetry if present.
@@ -663,12 +672,12 @@ export class MissionRunner {
       if (m) this.store.updateRunSessionId(runId, m[1]);
       this.store.updateTask(taskId, { state: 'done', run_state: 'done' });
       this.store.addEvent({ missionId, taskId, type: 'task_status', payload: { state: 'done', ok: true } });
-      notify(this.store, this.hub, isSubtask ? 'subtask_done' : 'task_done', isSubtask ? 'Subtask completed' : 'Task completed', task.title, `/missions/${missionId}`);
+      notify(this.store, this.hub, isSubtask ? 'subtask_done' : 'task_done', isSubtask ? 'Subtask completed' : 'Task completed', taskBody, `/missions/${missionId}`);
     } else {
       this.store.finishAgentRun(runId, 'failed', code ?? 1);
       this.store.updateTask(taskId, { state: 'blocked', run_state: 'failed' });
       this.store.addEvent({ missionId, taskId, type: 'task_status', payload: { state: 'blocked', ok: false, code } });
-      notify(this.store, this.hub, isSubtask ? 'subtask_failed' : 'task_failed', isSubtask ? 'Subtask failed' : 'Task failed', task.title, `/missions/${missionId}`);
+      notify(this.store, this.hub, isSubtask ? 'subtask_failed' : 'task_failed', isSubtask ? 'Subtask failed' : 'Task failed', taskBody, `/missions/${missionId}`);
     }
     this.hub.emit('mission', missionId, 'task_status', { task: this.store.getTask(taskId) });
     if (ok) this.maybeGenerateParentReport(missionId, taskId);
