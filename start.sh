@@ -63,12 +63,27 @@ api_pids() {
   dedupe_pids "$pids"
 }
 
-# web_pids — PIDs of THIS repo's frontend (PID file + port with cwd under ROOT).
-web_pids() {
-  local pids=""
-  pids="$pids $(pid_file_pid "$WEB_PID_FILE")"
-  pids="$pids $(pids_on_port_for_repo "$WEB_PORT" "$ROOT")"
-  dedupe_pids "$pids"
+# repo_web_port <repo_root> — the TCP port this repo's Vite frontend is
+# currently listening on (any port), or nothing if it isn't running. This lets
+# start.sh recognize a HermesCommander frontend regardless of which port it
+# ended up on, instead of only checking the hardcoded WEB_PORT.
+repo_web_port() {
+  local root="${1:-}" pid port
+  [ -n "$root" ] || return 1
+  for pid in $(pgrep -f 'vite' 2>/dev/null); do
+    pid_belongs_to_repo "$pid" "$root" || continue
+    # Extract the numeric listen port from the NAME field, which looks like
+    # `*:5175`. Match the `:digits` suffix (NOT the PID column, which is also
+    # all-digits) so we don't misread the process id as the port.
+    port="$(lsof -a -p "$pid" -iTCP -sTCP:LISTEN -P 2>/dev/null | awk '
+      /LISTEN/ {
+        for (i=1; i<=NF; i++) {
+          if (match($i, /:[0-9]+$/)) { sub(/^.*:/, "", $i); print $i; exit }
+        }
+      }')"
+    [ -n "$port" ] && { printf '%s\n' "$port"; return 0; }
+  done
+  return 1
 }
 
 # hermes_running — true if the Hermes gateway is running.
@@ -141,6 +156,20 @@ port_in_use() {
   local port="${1:-}"
   [ -n "$port" ] || return 1
   [ -n "$(pids_on_port "$port")" ]
+}
+
+# pick_free_port <start> — print the first port >= <start> that is free. Useful
+# when the configured port is held by another app: fall back to the next free
+# one instead of aborting.
+pick_free_port() {
+  local start="${1:-5173}" p
+  for p in $(seq "$start" "$((start + 200))"); do
+    if ! port_in_use "$p"; then
+      printf '%s\n' "$p"
+      return 0
+    fi
+  done
+  return 1
 }
 
 # port_held_by_other <port> <repo_root> — true (0) if the port is listening but
@@ -230,30 +259,46 @@ if ! node_modules_present "$ROOT"; then
 fi
 
 # 2. Detect THIS repo's services already running ---------------------------
+# The API is detected on its configured port; the frontend is detected on ANY
+# port it may be listening on now (repo_web_port), because a previous run may
+# have left it on a different port than the current WEB_PORT.
 API_PIDS="$(api_pids)"
-WEB_PIDS="$(web_pids)"
+DETECTED_WEB_PORT="$(repo_web_port "$ROOT")"
+if [ -n "$DETECTED_WEB_PORT" ]; then
+  WEB_PIDS="$(pids_on_port_for_repo "$DETECTED_WEB_PORT" "$ROOT")"
+else
+  WEB_PIDS=""
+fi
 
-# 2b. Pre-flight port conflict check ----------------------------------------
-# Refuse to start if a configured port (API or frontend) is currently held by
-# ANOTHER application (not this repo). This is exactly the case that silently
-# broke startup before: vite auto-incremented off a taken port while the script
-# still claimed success on the configured one (e.g. Laravel already on 5173).
-PORT_CONFLICT=0
-if port_held_by_other "$API_PORT" "$ROOT"; then
-  print_error "Port $API_PORT is already in use by ANOTHER application."
-  print_warn "  The API cannot bind there. Stop that app or set PORT=<free> ./start.sh"
-  PORT_CONFLICT=1
+# 2b. Pre-flight port conflict / auto-pick ----------------------------------
+# If our frontend is ALREADY running (any port), no conflict — we'll offer
+# stop/restart below. Otherwise, if the configured WEB_PORT is held by another
+# app (e.g. OpenCode or Laravel), auto-pick the next free port and start there
+# rather than aborting.
+if [ -z "$DETECTED_WEB_PORT" ] && port_held_by_other "$WEB_PORT" "$ROOT"; then
+  free="$(pick_free_port "$WEB_PORT")"
+  if [ -n "$free" ]; then
+    print_warn "Port $WEB_PORT is in use by another application."
+    print_warn "  Auto-selecting free port $free for the frontend."
+    WEB_PORT="$free"
+  else
+    print_error "No free port available near $WEB_PORT."
+    exit 1
+  fi
 fi
-if port_held_by_other "$WEB_PORT" "$ROOT"; then
-  print_error "Port $WEB_PORT is already in use by ANOTHER application."
-  print_warn "  The frontend cannot bind there. Stop that app or set WEB_PORT=<free> ./start.sh"
-  PORT_CONFLICT=1
-fi
-if [ "$PORT_CONFLICT" -eq 1 ]; then
-  echo
-  print_error "Startup aborted: a configured port is occupied by another application."
-  echo "  Free the ports (or rerun with PORT/WEB_PORT pointing to free ports), then retry."
-  exit 1
+
+# Same for the API: if its configured port is held by another app (and it's not
+# ours), auto-pick a free port.
+if [ -z "$API_PIDS" ] && port_held_by_other "$API_PORT" "$ROOT"; then
+  free="$(pick_free_port "$API_PORT")"
+  if [ -n "$free" ]; then
+    print_warn "Port $API_PORT is in use by another application."
+    print_warn "  Auto-selecting free port $free for the API."
+    API_PORT="$free"
+  else
+    print_error "No free port available near $API_PORT."
+    exit 1
+  fi
 fi
 
 # 3. Single confirmation before any destructive action ---------------------
@@ -317,7 +362,7 @@ else
 fi
 echo
 
-if [ -n "$(web_pids)" ]; then
+if [ -n "$(repo_web_port "$ROOT")" ]; then
   print_warn "Frontend skipped (already running from this repo)."
 else
   start_web || FAIL=1
@@ -325,6 +370,10 @@ fi
 echo
 
 # 6. Final verification -----------------------------------------------------
+# If the frontend/API were already running, report the port they are ACTUALLY
+# on (which may differ from the configured WEB_PORT/API_PORT).
+DETECTED_WEB_PORT="$(repo_web_port "$ROOT")"
+FINAL_WEB_PORT="${DETECTED_WEB_PORT:-$WEB_PORT}"
 print_status "Final verification:"
 if [ -f "$DB_PATH" ]; then
   print_ok "Database: present ($DB_PATH)."
@@ -337,7 +386,7 @@ else
   print_error "API: NOT running."
   FAIL=1
 fi
-if [ -n "$(web_pids)" ]; then
+if [ -n "$FINAL_WEB_PORT" ] && [ -n "$(repo_web_port "$ROOT")" ]; then
   print_ok "Frontend: running (this repo's process detected)."
 else
   print_error "Frontend: NOT running."
@@ -349,12 +398,12 @@ if [ "$FAIL" -eq 0 ]; then
   print_ok "All services started correctly."
   echo
   echo "─────────────────────────────────────────────────────"
-  echo "  Frontend:  http://127.0.0.1:${WEB_PORT}/"
+  echo "  Frontend:  http://127.0.0.1:${FINAL_WEB_PORT}/"
   echo "  API:       http://127.0.0.1:${API_PORT}"
   echo "  DB:        ${DB_PATH}"
   echo "─────────────────────────────────────────────────────"
   echo
-  print_ok "Open the frontend at:  ${C_BOLD}http://127.0.0.1:${WEB_PORT}/${C_RESET}"
+  print_ok "Open the frontend at:  ${C_BOLD}http://127.0.0.1:${FINAL_WEB_PORT}/${C_RESET}"
   echo
   exit 0
 else
