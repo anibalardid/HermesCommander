@@ -743,6 +743,43 @@ export class MissionRunner {
         context.push(`Consider the previous error output (this task was blocked/failed):\n${errorOutput.trim()}`);
       }
     }
+
+    // A FIX task for a PR review must plan against the REVIEW's REAL findings,
+    // not the (possibly optimistic) summary stored on the review task's
+    // description. The summary LLM can invent a PASS even when every reviewer
+    // said REJECT, which would make the planner conclude "nothing to fix" and
+    // skip the actual implementation work. Collect the review subtasks' real
+    // outputs (their VERDICT + findings) and feed them to the planner so it
+    // plans the fixes that were actually requested.
+    if (parent.review_pr_project_id && parent.review_pr_number) {
+      const reviewFindings: string[] = [];
+      const allTasks = this.store.listTasks(missionId);
+      // The review task is the sibling that shares the same PR reference and
+      // has review_verdict set (or is the review orchestrator itself).
+      const reviewTask = allTasks.find((t) =>
+        t.id !== parent.id &&
+        t.review_pr_project_id === parent.review_pr_project_id &&
+        t.review_pr_number === parent.review_pr_number,
+      );
+      if (reviewTask) {
+        const reviewRuns = this.store.listRunsForTask(reviewTask.id);
+        for (const run of reviewRuns) {
+          const logs = this.store.listLogsForRun(run.id) as Array<{ message: string }>;
+          for (const log of logs) {
+            const msg = String(log.message);
+            // Skip the spawn line (the full instruction prompt) and the
+            // instruction preamble; keep the subagent's actual findings.
+            if (msg.startsWith('Spawning task subagent') || msg.startsWith('You are acting as')) continue;
+            if (msg.trim()) reviewFindings.push(msg.trim());
+          }
+        }
+      }
+      if (reviewFindings.length > 0) {
+        context.push(
+          `The review of PR #${parent.review_pr_number} produced these REAL findings (from the review subagents' outputs). Plan the fixes to address them:\n${reviewFindings.join('\n').slice(0, 6000)}`,
+        );
+      }
+    }
     const res = await runPlanner(this.store, mission, cfg, objective, context, parent.subagent_ids ? JSON.parse(parent.subagent_ids) : undefined);
     if (!res.ok) return { ok: false, reason: res.reason };
 
