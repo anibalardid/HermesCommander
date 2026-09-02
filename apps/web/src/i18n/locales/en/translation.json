@@ -396,7 +396,11 @@
     "search": "Search",
     "loading": "Loading...",
     "saving": "Saving...",
-    "empty": "Nothing here yet"
+    "empty": "Nothing here yet",
+    "notFound": "Not found",
+    "projectNotFound": "Project not found",
+    "missionNotFound": "Mission not found",
+    "goHome": "Go home"
   },
   "notifications": {
     "title": "Notifications",

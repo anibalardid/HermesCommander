@@ -18,6 +18,7 @@ export function ProjectDetailView() {
   const navigate = useNavigate();
   const { t } = useTranslation();
   const project = useStore((s) => s.projects.find((p) => p.id === id));
+  const loading = useStore((s) => s.loading);
   const allMissions = useStore((s) => s.missions);
   const missions = allMissions.filter((m) => m.project_id === id);
   const deleteProject = useStore((s) => s.deleteProject);
@@ -46,7 +47,15 @@ export function ProjectDetailView() {
     saveWidth(workspaceWidth);
   }, [workspaceWidth]);
 
-  if (!project) return <div className="p-6 text-muted-foreground">{t('common.loading')}</div>;
+  if (loading) return <div className="p-6 text-muted-foreground">{t('common.loading')}</div>;
+  if (!project) {
+    return (
+      <div className="flex flex-col items-center justify-center gap-3 p-8 text-center">
+        <div className="text-sm text-muted-foreground">{t('common.projectNotFound')}</div>
+        <Button onClick={() => navigate('/')}>{t('common.goHome')}</Button>
+      </div>
+    );
+  }
   const proj = project;
 
   function openEdit() {

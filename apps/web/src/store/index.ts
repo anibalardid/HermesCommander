@@ -71,7 +71,7 @@ export const useStore = create<HermesCommanderState>((set, get) => ({
   projects: [],
   missions: [],
   agentsConfig: [],
-  loading: false,
+  loading: true,
   error: null,
   connected: false,
   paletteOpen: false,

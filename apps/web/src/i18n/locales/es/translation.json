@@ -396,7 +396,11 @@
     "search": "Buscar",
     "loading": "Cargando...",
     "saving": "Guardando...",
-    "empty": "Nada por aquí todavía"
+    "empty": "Nada por aquí todavía",
+    "notFound": "No encontrado",
+    "projectNotFound": "Proyecto no encontrado",
+    "missionNotFound": "Misión no encontrada",
+    "goHome": "Ir al inicio"
   },
   "notifications": {
     "title": "Notificaciones",

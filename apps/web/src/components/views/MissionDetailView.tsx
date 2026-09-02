@@ -26,6 +26,7 @@ export function MissionDetailView() {
   const navigate = useNavigate();
   const { t } = useTranslation();
   const [detail, setDetail] = useState<MissionDetail | null>(null);
+  const [notFound, setNotFound] = useState(false);
   const [logs, setLogs] = useState<AgentLogEntry[]>([]);
   const [workspaceOpen, setWorkspaceOpen] = useState(false);
   const [workspaceWidth, setWorkspaceWidth] = useState<number>(readSavedWidth);
@@ -161,8 +162,9 @@ export function MissionDetailView() {
 
   useEffect(() => {
     if (!id) return;
-    void api.getMission(id).then((d) => setDetail(d));
-    void api.listMissionLogs(id).then(({ logs }) => setLogs(logs));
+    setNotFound(false);
+    void api.getMission(id).then((d) => setDetail(d)).catch(() => setNotFound(true));
+    void api.listMissionLogs(id).then(({ logs }) => setLogs(logs)).catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
@@ -400,6 +402,14 @@ export function MissionDetailView() {
     t.state === 'done' &&
     !t.review_pr_project_id;
 
+  if (notFound) {
+    return (
+      <div className="flex flex-col items-center justify-center gap-3 p-8 text-center">
+        <div className="text-sm text-muted-foreground">{t('common.missionNotFound')}</div>
+        <Button onClick={() => navigate('/')}>{t('common.goHome')}</Button>
+      </div>
+    );
+  }
   if (!mission || !detail) return <div className="p-6 text-muted-foreground">{t('common.loading')}</div>;
 
   const tasks = detail.tasks;
