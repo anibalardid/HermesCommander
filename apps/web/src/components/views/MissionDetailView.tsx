@@ -1913,11 +1913,14 @@ function NewTaskModal({
     }
   }, [gitStrategy, missionId]);
 
-  // When profile changes, adopt its provider.
+  // When profile changes, adopt its provider. Deliberately does NOT depend on
+  // `provider`: otherwise, manually picking another provider would re-run this
+  // effect, which would overwrite the user's choice with the profile's provider
+  // (e.g. choosing 'opencode-go' snaps back to 'custom').
   useEffect(() => {
     const prof = profiles.find((p) => p.name === profile);
-    if (prof?.provider && prof.provider !== provider) setProvider(prof.provider);
-  }, [profile, profiles, provider]);
+    if (prof?.provider) setProvider((cur) => (prof.provider === cur ? cur : prof.provider));
+  }, [profile, profiles]);
 
   // When provider changes, fetch models. Keep the current model if it's still
   // in the list, else pick the first.
