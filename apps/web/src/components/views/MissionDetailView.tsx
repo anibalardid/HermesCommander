@@ -465,8 +465,13 @@ export function MissionDetailView() {
   };
   const driver = detail.mission.driver_type;
   // The effective provider/model for a task: its own override, else the driver's.
-  const modelFor = (t: Task) => t.agent_llm ?? detail.mission.driver_model;
-  const providerFor = (t: Task) => t.agent_provider ?? detail.mission.driver_provider;
+  // A task's own override lives in driver_model/driver_provider (set when the
+  // user picks a different provider/model on the new-task modal). agent_llm /
+  // agent_provider are the SUBAGENT's own overrides and are usually empty for a
+  // parent task — reading them here would fall through to the mission default
+  // and hide the user's choice.
+  const modelFor = (t: Task) => t.driver_model ?? detail.mission.driver_model;
+  const providerFor = (t: Task) => t.driver_provider ?? detail.mission.driver_provider;
   // While a task is generating its plan/subtasks, lock the whole task panel.
   // Source of truth is the PERSISTED run_state ('planning' survives a page
   // refresh and is set by the server for the whole background planning pass),
