@@ -1,0 +1,27 @@
+# Hermes Commander daemon — systemd unit (Linux).
+# Install:
+#   sudo cp deploy/hermes-commander.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now hermes-commander
+#
+# Adjust User/WorkingDirectory/Environment to your setup.
+
+[Unit]
+Description=Hermes Commander mission-control daemon
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=anibal
+WorkingDirectory=/Users/anibal/Projects/HermesCommander
+ExecStart=/Users/anibal/Projects/HermesCommander/deploy/hermes-commander.sh start
+Restart=on-failure
+RestartSec=5
+
+Environment=HERMES_COMMANDER_DB=/Users/anibal/Projects/HermesCommander/apps/server/data/hermes-commander.db
+Environment=PORT=4310
+Environment=HOST=0.0.0.0
+
+[Install]
+WantedBy=multi-user.target

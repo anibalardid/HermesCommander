@@ -1,0 +1,151 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 40 33% 96%;      /* #f6f5f4 warm white canvas */
+    --foreground: 0 0% 3.9%;       /* near-black text */
+    --card: 0 0% 100%;             /* pure white cards */
+    --card-foreground: 0 0% 3.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 3.9%;
+    --primary: 210 100% 44%;       /* #0075de notion blue */
+    --primary-foreground: 0 0% 98%;
+    --secondary: 40 20% 96%;       /* warm gray tint */
+    --secondary-foreground: 0 0% 10%;
+    --muted: 40 20% 96%;
+    --muted-foreground: 30 5% 37%; /* #615d59 warm gray 500 */
+    --accent: 40 20% 96%;
+    --accent-foreground: 0 0% 10%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 0 0% 90%;            /* rgba(0,0,0,0.1) whisper border */
+    --input: 0 0% 90%;
+    --ring: 210 100% 44%;
+    --radius: 0.5rem;
+  }
+
+  .dark {
+    --background: 240 10% 3.9%;
+    --foreground: 0 0% 98%;
+    --card: 240 10% 3.9%;
+    --card-foreground: 0 0% 98%;
+    --popover: 240 10% 3.9%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 0 0% 98%;
+    --primary-foreground: 240 5.9% 10%;
+    --secondary: 240 3.7% 15.9%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 240 3.7% 15.9%;
+    --muted-foreground: 240 5% 64.9%;
+    --accent: 240 3.7% 15.9%;
+    --accent-foreground: 0 0% 98%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 240 3.7% 15.9%;
+    --input: 240 3.7% 15.9%;
+    --ring: 240 4.9% 83.9%;
+  }
+
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* GitHub-style markdown rendering (PR descriptions & comments) */
+  .markdown-body p { margin: 0.4em 0; }
+  .markdown-body p:first-child { margin-top: 0; }
+  .markdown-body p:last-child { margin-bottom: 0; }
+  .markdown-body h1, .markdown-body h2, .markdown-body h3,
+  .markdown-body h4, .markdown-body h5, .markdown-body h6 {
+    font-weight: 600; margin: 0.8em 0 0.4em; line-height: 1.3;
+  }
+  .markdown-body h1 { font-size: 1.3em; }
+  .markdown-body h2 { font-size: 1.15em; }
+  .markdown-body h3 { font-size: 1.05em; }
+  .markdown-body ul, .markdown-body ol { margin: 0.4em 0; padding-left: 1.4em; }
+  .markdown-body li { margin: 0.2em 0; }
+  .markdown-body code {
+    background: rgba(0,0,0,0.06); border-radius: 4px; padding: 0.1em 0.35em;
+    font-size: 0.9em; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  .markdown-body pre {
+    background: rgba(0,0,0,0.06); border-radius: 6px; padding: 0.6em 0.8em;
+    overflow-x: auto; margin: 0.5em 0;
+  }
+  .markdown-body pre code { background: none; padding: 0; }
+  .markdown-body blockquote {
+    border-left: 3px solid rgba(0,0,0,0.15); margin: 0.5em 0;
+    padding-left: 0.8em; color: var(--muted-foreground);
+  }
+  .markdown-body a { color: var(--ring); text-decoration: underline; }
+  .markdown-body table { border-collapse: collapse; margin: 0.5em 0; }
+  .markdown-body th, .markdown-body td {
+    border: 1px solid rgba(0,0,0,0.12); padding: 0.3em 0.6em; text-align: left;
+  }
+  .markdown-body img { max-width: 100%; border-radius: 6px; }
+  .markdown-body hr { border: none; border-top: 1px solid rgba(0,0,0,0.12); margin: 0.8em 0; }
+  .markdown-body input[type="checkbox"] { margin-right: 0.4em; }
+}
+
+/* Icon hover/tap animations (desktop hover + mobile tap) */
+@layer components {
+  .icon-anim {
+    transition: transform 0.15s ease, color 0.15s ease;
+  }
+  button:hover .icon-anim,
+  a:hover .icon-anim,
+  .group:hover .icon-anim {
+    transform: scale(1.15);
+  }
+  button:active .icon-anim,
+  a:active .icon-anim {
+    transform: scale(0.9);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .icon-anim {
+      transition: none;
+    }
+  }
+
+  /* Toast slide/fade-in. Respects prefers-reduced-motion. */
+  .toast-enter {
+    animation: toast-in 0.2s ease-out;
+  }
+  @keyframes toast-in {
+    from {
+      opacity: 0;
+      transform: translateX(1rem);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(0);
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .toast-enter {
+      animation: none;
+    }
+  }
+
+  /* Notification bell pulse when a new notification arrives. */
+  .bell-pulse {
+    animation: bell-pulse 0.6s ease-out;
+  }
+  @keyframes bell-pulse {
+    0% { transform: scale(1); }
+    30% { transform: scale(1.35) rotate(-12deg); }
+    60% { transform: scale(1.2) rotate(10deg); }
+    100% { transform: scale(1); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .bell-pulse {
+      animation: none;
+    }
+  }
+}

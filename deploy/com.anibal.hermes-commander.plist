@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.anibal.hermes-commander</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/usr/bin/env</string>
+    <string>bash</string>
+    <string>/Users/anibal/Projects/HermesCommander/deploy/hermes-commander.sh</string>
+    <string>start</string>
+  </array>
+
+  <key>RunAtLoad</key>
+  <true/>
+
+  <key>KeepAlive</key>
+  <true/>
+
+  <key>StandardOutPath</key>
+  <string>/Users/anibal/Projects/HermesCommander/.hermes-commander.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/anibal/Projects/HermesCommander/.hermes-commander.log</string>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>HERMES_COMMANDER_DB</key>
+    <string>/Users/anibal/Projects/HermesCommander/apps/server/data/hermes-commander.db</string>
+    <key>PORT</key>
+    <string>4310</string>
+    <key>HOST</key>
+    <string>0.0.0.0</string>
+  </dict>
+</dict>
+</plist>

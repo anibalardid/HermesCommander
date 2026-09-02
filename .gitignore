@@ -1,0 +1,18 @@
+# Hermes Commander — Mission Control
+node_modules/
+dist/
+*.log
+.env
+.DS_Store
+data/
+apps/server/*.db
+apps/server/data/
+coverage/
+.laoficina.pid
+.laoficina.log
+.hermes-commander.pid
+.hermes-commander.log
+test-results/
+playwright-report/
+**/e2e/shots/
+*.tsbuildinfo
