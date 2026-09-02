@@ -458,7 +458,14 @@ export function MissionDetailView() {
   const modelFor = (t: Task) => t.agent_llm ?? detail.mission.driver_model;
   const providerFor = (t: Task) => t.agent_provider ?? detail.mission.driver_provider;
   // While a task is generating its plan/subtasks, lock the whole task panel.
-  const isPlanning = planningIds.has(selectedTask?.id ?? '');
+  // Source of truth is the PERSISTED run_state ('planning' survives a page
+  // refresh and is set by the server for the whole background planning pass),
+  // OR the local in-flight flag for the current click. The local flag alone is
+  // not enough: planTaskAsync is fire-and-forget, so the HTTP call returns
+  // immediately and the local flag would clear while the server is still
+  // planning. Using run_state keeps the button disabled for the real duration.
+  const isPlanning = (t: Task | null | undefined) =>
+    !!t && (planningIds.has(t.id) || t.run_state === 'planning');
   const agentLabel = (t: Task) => {
     const m = modelFor(t);
     const p = providerFor(t);
@@ -791,10 +798,10 @@ export function MissionDetailView() {
                                   onClick={(e) => { e.stopPropagation(); void planTask(f.root); }}
                                   title={t('task.plan')}
                                   aria-label={t('task.plan')}
-                                  disabled={planningIds.has(f.root.id)}
+                                  disabled={isPlanning(f.root)}
                                   className="shrink-0 rounded-md bg-primary/80 p-1.5 text-primary-foreground shadow transition-all hover:bg-primary hover:shadow-md active:scale-90 disabled:opacity-60"
                                 >
-                                  {planningIds.has(f.root.id) ? (
+                                  {isPlanning(f.root) ? (
                                     <Loader2 className="icon-anim h-3.5 w-3.5 animate-spin" />
                                   ) : (
                                     <Brain className="icon-anim h-3.5 w-3.5" />
@@ -1004,7 +1011,7 @@ export function MissionDetailView() {
                       const parent = tasks.find((x: Task) => x.id === selectedTask.parent_id);
                       if (parent) setSelectedTask(parent);
                     }}
-                    disabled={isPlanning}
+                    disabled={isPlanning(selectedTask)}
                     title={t('task.back')}
                     aria-label={t('task.back')}
                     className="shrink-0 rounded-md border border-border/60 p-1.5 text-muted-foreground hover:bg-accent disabled:opacity-50 disabled:hover:bg-transparent"
@@ -1014,7 +1021,7 @@ export function MissionDetailView() {
                 ) : (
                   <button
                     onClick={() => setSelectedTask(null)}
-                    disabled={isPlanning}
+                    disabled={isPlanning(selectedTask)}
                     title={t('task.back')}
                     aria-label={t('task.back')}
                     className="shrink-0 rounded-md border border-border/60 p-1.5 text-muted-foreground hover:bg-accent disabled:opacity-50 disabled:hover:bg-transparent"
@@ -1164,7 +1171,7 @@ export function MissionDetailView() {
                       <button
                         type="button"
                         onClick={() => { setEditTaskDesc(selectedTask.description ?? ''); }}
-                        disabled={isPlanning}
+                        disabled={isPlanning(selectedTask)}
                         className="inline-flex items-center gap-1 text-xs text-primary hover:underline disabled:opacity-50 disabled:hover:no-underline"
                       >
                         <Pencil className="icon-anim h-3 w-3" /> {t('common.edit')}
@@ -1449,7 +1456,7 @@ export function MissionDetailView() {
                           key={r.id}
                           type="button"
                           onClick={() => void toggleSubagent(r.name)}
-                          disabled={isPlanning}
+                          disabled={isPlanning(selectedTask)}
                           className={`rounded-full border px-2.5 py-1 text-xs ${on ? 'border-primary bg-primary/10 text-primary' : 'border-input text-muted-foreground hover:bg-accent'} disabled:opacity-50 disabled:hover:bg-transparent`}
                         >
                           {r.title}
@@ -1480,7 +1487,7 @@ export function MissionDetailView() {
                   const ownBranch = selectedTask.branch && project?.branch !== selectedTask.branch;
                   setDeleteStep(ownWorktree || ownBranch ? 'worktree' : 'confirm');
                 }}
-                disabled={isPlanning}
+                disabled={isPlanning(selectedTask)}
                 className="flex w-full items-center justify-center gap-2 rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm font-medium text-destructive hover:bg-destructive/10 disabled:opacity-50 disabled:hover:bg-destructive/5"
               >
                 <Trash2 className="icon-anim h-4 w-4" /> {t('common.delete')}
@@ -1505,14 +1512,14 @@ export function MissionDetailView() {
                     <div className="space-y-1.5">
                       <button
                         onClick={() => void planTask(selectedTask)}
-                        disabled={noSubagents || planningIds.has(selectedTask.id) || selectedTask.run_state === 'planning'}
+                        disabled={noSubagents || isPlanning(selectedTask)}
                         className={`flex w-full items-center justify-center gap-2 rounded-md border px-3 py-2 text-sm font-medium disabled:opacity-60 ${
                           selectedTask.run_state === 'failed'
                             ? 'border-sky-500/40 bg-sky-500/10 text-sky-600 hover:bg-sky-500/20'
                             : 'border-primary/40 bg-primary/5 text-primary hover:bg-primary/10'
                         }`}
                       >
-                        {planningIds.has(selectedTask.id) || selectedTask.run_state === 'planning' ? (
+                        {isPlanning(selectedTask) ? (
                           <Loader2 className="icon-anim h-4 w-4 animate-spin" />
                         ) : selectedTask.run_state === 'failed' ? (
                           <RotateCcw className="icon-anim h-4 w-4" />
