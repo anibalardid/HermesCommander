@@ -13,13 +13,12 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-User=anibal
-WorkingDirectory=/Users/anibal/Projects/HermesCommander
-ExecStart=/Users/anibal/Projects/HermesCommander/deploy/hermes-commander.sh start
+User=__USER__
+WorkingDirectory=__REPO_ROOT__
+ExecStart=__REPO_ROOT__/deploy/hermes-commander.sh start __REPO_ROOT__
 Restart=on-failure
 RestartSec=5
 
-Environment=HERMES_COMMANDER_DB=/Users/anibal/Projects/HermesCommander/apps/server/data/hermes-commander.db
 Environment=PORT=4310
 Environment=HOST=0.0.0.0
 

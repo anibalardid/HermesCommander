@@ -3,6 +3,10 @@
 Hermes Commander runs as a background daemon on your host (Mac/miniPC/Linux) so it's
 available 24/7 over Tailscale. This directory contains the packaging.
 
+> **No hardcoded paths.** The launchd/systemd units use `__REPO_ROOT__` and
+> `__USER__` placeholders instead of a specific machine's absolute paths, so the
+> repo is portable. Replace them with your own values before installing (see below).
+
 ## Quick start (any OS)
 
 ```bash
@@ -12,8 +16,15 @@ available 24/7 over Tailscale. This directory contains the packaging.
 ./hermes-commander.sh stop     # stop
 ```
 
-The script uses the compiled build (`apps/server/dist`) if present, otherwise
-falls back to `tsx`. Set `HERMES_COMMANDER_DB`, `PORT`, `HOST` via env to override.
+The script auto-detects the repo root from its own location, so it works from any
+checkout. You can also pass the repo root explicitly:
+
+```bash
+./hermes-commander.sh start /path/to/HermesCommander
+```
+
+It uses the compiled build (`apps/server/dist`) if present, otherwise falls back to
+`tsx`. Set `HERMES_COMMANDER_DB`, `PORT`, `HOST` via env to override.
 
 ### Embedded-terminal prerequisites (TUI tab)
 
@@ -30,17 +41,27 @@ See `docs/09-tui-terminal.md` for details.
 ## macOS — auto-start at login (launchd)
 
 1. Build the server once: `cd apps/server && npm run build`
-2. Install the plist:
+2. Replace the placeholders in the plist with your repo's absolute path:
+   ```bash
+   sed -i '' 's|__REPO_ROOT__|/absolute/path/to/HermesCommander|g' \
+     deploy/com.anibal.hermes-commander.plist
+   ```
+3. Install the plist:
    ```bash
    cp deploy/com.anibal.hermes-commander.plist ~/Library/LaunchAgents/
    launchctl load ~/Library/LaunchAgents/com.anibal.hermes-commander.plist
    ```
-3. It starts at login and restarts if it crashes (`KeepAlive`).
+4. It starts at login and restarts if it crashes (`KeepAlive`).
 
 ## Linux — systemd
 
 1. Build the server once: `cd apps/server && npm run build`
-2. Install the unit (adjust `User`/paths in the file first):
+2. Replace the placeholders in the unit with your user and repo path:
+   ```bash
+   sed -i 's|__REPO_ROOT__|/absolute/path/to/HermesCommander|g; s|__USER__|youruser|g' \
+     deploy/hermes-commander.service
+   ```
+3. Install the unit:
    ```bash
    sudo cp deploy/hermes-commander.service /etc/systemd/system/
    sudo systemctl daemon-reload

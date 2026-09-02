@@ -1,22 +1,31 @@
 #!/usr/bin/env bash
 # Hermes Commander daemon launcher.
 # Usage:
-#   ./hermes-commander.sh start   # start the daemon (background)
-#   ./hermes-commander.sh stop    # stop the daemon
-#   ./hermes-commander.sh status  # show status
-#   ./hermes-commander.sh logs    # tail the daemon log
+#   ./hermes-commander.sh start [REPO_ROOT]   # start the daemon (background)
+#   ./hermes-commander.sh stop                # stop the daemon
+#   ./hermes-commander.sh status              # show status
+#   ./hermes-commander.sh logs                # tail the daemon log
+#
+# REPO_ROOT is optional: if omitted, it is auto-detected from this script's
+# location. Pass it explicitly when the repo lives somewhere else (e.g. from a
+# launchd/systemd unit that hardcodes an absolute path).
 #
 # Works on macOS and Linux. On macOS you can also use the launchd plist
 # (see deploy/com.anibal.hermes-commander.plist) for auto-start at login.
 
 set -euo pipefail
 
-# Resolve the repo root (parent of this script's dir).
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# Resolve the repo root: explicit arg wins, otherwise auto-detect from this
+# script's location.
+if [ -n "${2:-}" ]; then
+  ROOT="$(cd "$2" && pwd)"
+else
+  ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+fi
 SERVER_DIR="$ROOT/apps/server"
 PID_FILE="$ROOT/.hermes-commander.pid"
 LOG_FILE="$ROOT/.hermes-commander.log"
-DB_PATH="${HERMES_COMMANDER_DB:-$ROOT/data/hermes-commander.db}"
+DB_PATH="${HERMES_COMMANDER_DB:-$ROOT/apps/server/data/hermes-commander.db}"
 PORT="${PORT:-4310}"
 HOST="${HOST:-0.0.0.0}"
 
