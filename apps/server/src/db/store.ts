@@ -40,6 +40,7 @@ export type TaskRow = {
   worktree_path: string | null; subagent_ids: string;
   review_pr_project_id: string | null; review_pr_number: number | null;
   review_verdict: 'pass' | 'needs_changes' | 'reject' | null;
+  is_fix_task: number;
   retry_count: number;
   pr_url: string | null;
   created_at: number; updated_at: number;
@@ -145,6 +146,9 @@ export class Store {
     }
     if (!taskCols.some((c) => c.name === 'review_verdict')) {
       this.db.exec(`ALTER TABLE tasks ADD COLUMN review_verdict TEXT`);
+    }
+    if (!taskCols.some((c) => c.name === 'is_fix_task')) {
+      this.db.exec(`ALTER TABLE tasks ADD COLUMN is_fix_task INTEGER NOT NULL DEFAULT 0`);
     }
     if (!taskCols.some((c) => c.name === 'retry_count')) {
       this.db.exec(`ALTER TABLE tasks ADD COLUMN retry_count INTEGER NOT NULL DEFAULT 0`);
@@ -433,14 +437,14 @@ export class Store {
     this.db.prepare('DELETE FROM subagent_recipes WHERE id = ?').run(id);
   }
 
-  createTask(t: Omit<TaskRow, 'id' | 'created_at' | 'updated_at' | 'run_state' | 'agent_provider' | 'agent_profile' | 'subagent_ids' | 'git_strategy' | 'branch' | 'base_branch' | 'spec' | 'driver_profile' | 'driver_model' | 'driver_provider' | 'worktree_path' | 'review_pr_project_id' | 'review_pr_number' | 'review_verdict' | 'retry_count' | 'pr_url'> & { run_state?: TaskRow['run_state']; agent_provider?: string | null; agent_profile?: string | null; subagent_ids?: string; git_strategy?: TaskRow['git_strategy']; branch?: string | null; base_branch?: string | null; spec?: string | null; driver_profile?: string | null; driver_model?: string | null; driver_provider?: string | null; worktree_path?: string | null; review_pr_project_id?: string | null; review_pr_number?: number | null; review_verdict?: TaskRow['review_verdict']; retry_count?: number; pr_url?: string | null }): TaskRow {
+  createTask(t: Omit<TaskRow, 'id' | 'created_at' | 'updated_at' | 'run_state' | 'agent_provider' | 'agent_profile' | 'subagent_ids' | 'git_strategy' | 'branch' | 'base_branch' | 'spec' | 'driver_profile' | 'driver_model' | 'driver_provider' | 'worktree_path' | 'review_pr_project_id' | 'review_pr_number' | 'review_verdict' | 'is_fix_task' | 'retry_count' | 'pr_url'> & { run_state?: TaskRow['run_state']; agent_provider?: string | null; agent_profile?: string | null; subagent_ids?: string; git_strategy?: TaskRow['git_strategy']; branch?: string | null; base_branch?: string | null; spec?: string | null; driver_profile?: string | null; driver_model?: string | null; driver_provider?: string | null; worktree_path?: string | null; review_pr_project_id?: string | null; review_pr_number?: number | null; review_verdict?: TaskRow['review_verdict']; is_fix_task?: number; retry_count?: number; pr_url?: string | null }): TaskRow {
     const id = uuid();
     const ts = now();
     this.db.prepare(
       `INSERT INTO tasks (id,mission_id,title,description,spec,state,run_state,parent_id,depends_on,
-        agent_type,agent_llm,agent_provider,agent_profile,agent_system_prompt,git_strategy,branch,base_branch,driver_profile,driver_model,driver_provider,worktree_path,subagent_ids,review_pr_project_id,review_pr_number,review_verdict,retry_count,pr_url,sort_order,created_at,updated_at)
+        agent_type,agent_llm,agent_provider,agent_profile,agent_system_prompt,git_strategy,branch,base_branch,driver_profile,driver_model,driver_provider,worktree_path,subagent_ids,review_pr_project_id,review_pr_number,review_verdict,is_fix_task,retry_count,pr_url,sort_order,created_at,updated_at)
       VALUES (@id,@mission_id,@title,@description,@spec,@state,@run_state,@parent_id,@depends_on,
-        @agent_type,@agent_llm,@agent_provider,@agent_profile,@agent_system_prompt,@git_strategy,@branch,@base_branch,@driver_profile,@driver_model,@driver_provider,@worktree_path,@subagent_ids,@review_pr_project_id,@review_pr_number,@review_verdict,@retry_count,@pr_url,@sort_order,@created_at,@updated_at)`
+        @agent_type,@agent_llm,@agent_provider,@agent_profile,@agent_system_prompt,@git_strategy,@branch,@base_branch,@driver_profile,@driver_model,@driver_provider,@worktree_path,@subagent_ids,@review_pr_project_id,@review_pr_number,@review_verdict,@is_fix_task,@retry_count,@pr_url,@sort_order,@created_at,@updated_at)`
     ).run({
       ...t,
       spec: t.spec ?? null,
@@ -458,6 +462,7 @@ export class Store {
       review_pr_project_id: t.review_pr_project_id ?? null,
       review_pr_number: t.review_pr_number ?? null,
       review_verdict: t.review_verdict ?? null,
+      is_fix_task: t.is_fix_task ?? 0,
       retry_count: t.retry_count ?? 0,
       pr_url: t.pr_url ?? null,
       id, created_at: ts, updated_at: ts,

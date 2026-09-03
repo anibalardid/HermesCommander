@@ -78,6 +78,7 @@ CREATE TABLE IF NOT EXISTS tasks (
   review_pr_project_id  TEXT,
   review_pr_number      INTEGER,
   review_verdict        TEXT CHECK (review_verdict IN ('pass','needs_changes','reject')),
+  is_fix_task           INTEGER NOT NULL DEFAULT 0,
   retry_count  INTEGER NOT NULL DEFAULT 0,
   pr_url       TEXT,
   sort_order  INTEGER NOT NULL DEFAULT 0,

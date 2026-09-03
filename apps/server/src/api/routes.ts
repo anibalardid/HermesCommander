@@ -689,6 +689,7 @@ export function registerApiRoutes(app: FastifyInstance, store: Store, hub: Event
       subagent_ids: JSON.stringify((body.subagentIds as string[]) ?? []),
       review_pr_project_id: (body.reviewPrProjectId as string) ?? null,
       review_pr_number: (body.reviewPrNumber as number) ?? null,
+      is_fix_task: (body.isFixTask as number) ?? 0,
       worktree_path: (body.worktreePath as string) ?? null,
       sort_order: (body.order as number) ?? 0,
     });

@@ -941,7 +941,7 @@ export class MissionRunner {
     // Don't re-run if a report already exists on the parent — EXCEPT for PR
     // reviews, which always need a structured verdict generated even if the
     // task already has a description (e.g. the review objective).
-    const isReviewTask = !!(parent.review_pr_project_id && parent.review_pr_number);
+    const isReviewTask = !!(parent.review_pr_project_id && parent.review_pr_number) && !parent.is_fix_task;
     if (!isReviewTask && parent.description && parent.description.length > 20) return;
 
     const siblings = this.store.listTasks(missionId).filter((t) => t.parent_id === parent.id);
@@ -968,7 +968,7 @@ export class MissionRunner {
       const outcome = real ? real.message : (t.description ?? '');
       return `- ${t.title}: ${outcome.slice(0, 600)} (done)`;
     }).join('\n');
-    const isReview = !!(parent.review_pr_project_id && parent.review_pr_number);
+    const isReview = !!(parent.review_pr_project_id && parent.review_pr_number) && !parent.is_fix_task;
     const prompt = [
       `You are summarizing a completed mission for a pull request / commit message.`,
       `Mission: "${mission.name}"`,

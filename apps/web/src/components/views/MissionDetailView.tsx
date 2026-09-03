@@ -313,6 +313,7 @@ export function MissionDetailView() {
         subagentIds: [],
         reviewPrProjectId: reviewTask.review_pr_project_id,
         reviewPrNumber: reviewTask.review_pr_number,
+        isFixTask: 1,
       });
       if (id) void api.getMission(id).then((d) => setDetail(d));
       // Open the new fix task in the modal.
@@ -451,6 +452,9 @@ export function MissionDetailView() {
   // keeps the "create fix task" button working even when the structured
   // verdict failed to persist (e.g. a re-run after a server crash).
   const effectiveVerdict = (t: Task): 'pass' | 'needs_changes' | 'reject' | null => {
+    // A FIX task is not a review — it never carries a verdict. Only review
+    // tasks (is_fix_task falsy) show a verdict badge.
+    if (t.is_fix_task) return null;
     if (t.review_verdict) return t.review_verdict;
     if (!t.review_pr_project_id || !t.review_pr_number) return null;
     const text = taskLogs.map((l) => l.message).join('\n');
@@ -776,7 +780,7 @@ export function MissionDetailView() {
                           <Card className={`m-1 p-3 text-sm transition-colors hover:border-primary/50 border-l-4 ${stateColor(f.root.state)}`}>
                             <div className="flex items-start justify-between gap-2">
                               <div className="min-w-0 flex-1 truncate font-medium">{f.root.title}</div>
-                              {f.root.review_verdict && (
+                              {!f.root.is_fix_task && f.root.review_verdict && (
                                 <VerdictBadge verdict={f.root.review_verdict} className="shrink-0" />
                               )}
                               {f.root.state === 'done' ? (

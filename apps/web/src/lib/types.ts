@@ -67,6 +67,7 @@ export type Task = {
   review_pr_project_id: string | null;
   review_pr_number: number | null;
   review_verdict?: 'pass' | 'needs_changes' | 'reject' | null;
+  is_fix_task?: number;
   pr_url?: string | null;
   retry_count?: number;
   created_at: number;
